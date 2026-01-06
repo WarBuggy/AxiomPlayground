@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AxiomPlayground.Localization</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Dev configuration -->
+  <PropertyGroup Condition="'$(Configuration)'=='Dev'">
+    <DefineConstants>DEV_ENV;TRACE</DefineConstants>
+    <OutputPath>c:\Code\AxiomPlayground\lib\Dev\</OutputPath>
+  </PropertyGroup>
+
+  <!-- Release configuration -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>c:\Code\AxiomPlayground\lib\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Modding/Modding.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,70 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Scripting/1.0.0": {
+        "dependencies": {
+          "Localization": "1.0.0",
+          "Modding": "1.0.0",
+          "MoonSharp.Interpreter": "2.0.0.0"
+        },
+        "runtime": {
+          "Scripting.dll": {}
+        }
+      },
+      "Localization/1.0.0": {
+        "dependencies": {
+          "Modding": "1.0.0"
+        },
+        "runtime": {
+          "Localization.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Modding/1.0.0": {
+        "runtime": {
+          "Modding.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MoonSharp.Interpreter/2.0.0.0": {
+        "runtime": {
+          "MoonSharp.Interpreter.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Scripting/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Localization/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Modding/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MoonSharp.Interpreter/2.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
