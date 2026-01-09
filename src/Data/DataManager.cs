@@ -10,7 +10,7 @@ public sealed class DataManager
     private const string DATA_FOLDER = "Data";
     private readonly Dictionary<string, DataContainer> _dataContainers = new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
-
+    private readonly HashSet<string> _registeredCategories = new(StringComparer.OrdinalIgnoreCase);
     private DataManager() { }
 
     public void LoadAll(List<ModInstance> mods)
@@ -63,9 +63,31 @@ public sealed class DataManager
                     container = new DataContainer();
                     _dataContainers[targetModId] = container;
                 }
-                string jsonString = JsonSerializer.Serialize(file.Data, _jsonOptions);
-                var rootElement = JsonDocument.Parse(jsonString).RootElement;
-                container.AddToFlatData(rootElement, file.SamePathConflict, file.SamePathConflictArray);
+
+                foreach (var kv in file.Data)
+                {
+                    var key = kv.Key;
+                    var value = kv.Value;
+
+                    string json = JsonSerializer.Serialize(value, _jsonOptions);
+                    var element = JsonDocument.Parse(json).RootElement;
+
+
+                    _registeredCategories.TryGetValue(key, out string? category);
+                    if (category != null)
+                    {
+                        // Category matched: strip the category prefix
+                        container.AddToFlatData(element, category, file.SamePathConflict, file.SamePathConflictArray);
+                    }
+                    else
+                    {
+                        // No category: keep full path
+                        var wrapped = JsonDocument.Parse(
+                            JsonSerializer.Serialize(new Dictionary<string, object> { { key, value } }, _jsonOptions)).RootElement;
+
+                        container.AddToFlatData(wrapped, null, file.SamePathConflict, file.SamePathConflictArray);
+                    }
+                }
             }
         }
 
@@ -105,6 +127,23 @@ public sealed class DataManager
         container.SetFlatData(path, value);
     }
 
+    public void RegisterCategories(IEnumerable<string> categories)
+    {
+        foreach (var category in categories)
+            _registeredCategories.Add(category);
+    }
+
+    public DataContainer? TryGetContainer(string modId)
+    {
+        _dataContainers.TryGetValue(modId, out var container);
+        return container;
+    }
+
+    public void ClearCategoryIndex(string category)
+    {
+        foreach (var (_, container) in _dataContainers)
+            container.ClearCategoryIndex(category);
+    }
 
     private sealed class JsonDataFile
     {
