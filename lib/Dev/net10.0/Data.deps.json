@@ -6,37 +6,13 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
-      "Scripting/1.0.0": {
+      "Data/1.0.0": {
         "dependencies": {
-          "Data": "1.0.0",
-          "Localization": "1.0.0",
           "Modding": "1.0.0",
           "MoonSharp.Interpreter": "2.0.0.0"
         },
         "runtime": {
-          "Scripting.dll": {}
-        }
-      },
-      "Data/1.0.0": {
-        "dependencies": {
-          "Modding": "1.0.0"
-        },
-        "runtime": {
-          "Data.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
-        }
-      },
-      "Localization/1.0.0": {
-        "dependencies": {
-          "Modding": "1.0.0"
-        },
-        "runtime": {
-          "Localization.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
+          "Data.dll": {}
         }
       },
       "Modding/1.0.0": {
@@ -58,17 +34,7 @@
     }
   },
   "libraries": {
-    "Scripting/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
     "Data/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Localization/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

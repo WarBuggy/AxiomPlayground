@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>AxiomPlayground.Scripting</RootNamespace>
+    <RootNamespace>AxiomPlayground.Data</RootNamespace>
   </PropertyGroup>
 
   <!-- Dev configuration -->
@@ -21,12 +21,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Modding/Modding.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Data/Data.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Localization/Localization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

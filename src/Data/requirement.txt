@@ -1,0 +1,189 @@
+AxiomPlayground Data Module – Requirements (TXT)
+
+1. Purpose
+
+The Data module provides a mod-friendly way to feed raw game data into the engine using JSON files.
+It acts as a structured bridge between mod-authored data and engine-level consumption.
+The Data module follows the same per-mod ownership model as Localization and Scripting for consistency,
+safety, and traceability.
+
+
+2. Data Ownership Model
+
+- All data is owned by a mod.
+- Each mod has its own isolated data namespace.
+- A mod can:
+  - Add data to itself
+  - Add data to another mod
+  - Overwrite data in another mod
+- Access to data is always explicit and mod-aware.
+
+
+3. DataManager Responsibilities
+
+- DataManager receives a list of loaded mods.
+- Each mod provides:
+  - modId
+  - modPath
+- Load order is assumed to be handled elsewhere.
+
+
+4. Data Folder Scanning
+
+- For each mod, DataManager scans recursively under Path: modPath/Data/
+- Folder structure inside Data has no semantic meaning.
+- All .json files are processed regardless of subfolder depth.
+- Example: Data/a/b/c/d.json is treated the same as Data/d.json.
+
+
+5. JSON File Structure
+
+Each JSON file must perform exactly one action.
+
+Allowed top-level fields:
+- data (required)
+- samePathConflict (optional)
+- samePathConflictArray (optional)
+- targetMod (optional)
+
+Rules:
+- data is required
+- addTo and overwrite are mutually exclusive
+- If both addTo and overwrite are present, overwrite takes precedence
+- If neither addTo nor overwrite is present, data is applied to the current mod
+
+
+6. JSON Semantics
+
+- data contains arbitrary structured content defined by the mod.
+- The Data module does not impose schema or meaning on data content.
+- Interpretation of data is handled by higher-level systems.
+
+
+7. Cross-Mod Data Modification
+
+- addTo:
+  - Adds the provided data into the target mod’s data namespace.
+- overwrite:
+  - Replaces the target mod’s data at the specified paths.
+- Cross-mod modification is explicit and intentional.
+
+
+8. Script-Level Access
+
+From Lua scripts, data access follows the current mod context.
+
+Access own mod data:
+- getData(jsonPath)
+- setData(jsonPath, value)
+
+Access another mod’s data:
+- getData(modId, jsonPath)
+- setData(modId, jsonPath, value)
+
+- Current mod context is always known at script execution time.
+- All data access is resolved through DataManager.
+
+
+9. Conflict Handling Philosophy
+
+- Internal data identity is per-mod.
+- Player-facing conflicts (e.g., duplicate names like “CarA”) are handled at UI or gameplay layers.
+- Data module does not attempt to resolve semantic conflicts.
+
+
+10. Design Principles
+
+- Consistency with Scripting module
+- Explicit ownership and access
+- No accidental overwrites
+- Traceability of data origin
+- Modder-friendly and predictable behavior
+
+
+AxiomPlayground Data Module – Same-Path Conflict Resolution Requirements (Updated)
+
+1. Purpose
+
+These requirements define how the DataManager should handle conflicts when two or more JSON files from the same mod (or cross-mod with overwrite/addTo) define data at the same "path".
+
+This is called a "same-path conflict".
+
+Additionally, this document clarifies how null values are handled (ignored) in flattened data.
+
+2. Overview
+
+- Same-path conflicts occur only when the exact JSON path exists in multiple files being merged.
+- Conflicts are categorized into two types:
+
+  1. Conflicts where no array involves
+     - Applies to primitives or other cases where array merging is not meaningful.
+     - Excludes any conflict where one of the values is null.
+
+  2. Conflicts where at least one array involves
+     - Applies to:
+       - Both values are arrays.
+       - One value is an array, the other is a single element.
+     - Excludes any conflict where one of the values is null.
+
+3. Flattened Data Rules
+
+- A leaf node is a JSON value that is not an object or container; it represents a single primitive (string, number, boolean, or null) or an array, and has no child keys.
+- Flattened data stores all leaf paths and their values from merged JSON files.
+- **Null leaf values are ignored**:
+    - Any null leaf value in the input JSON is not stored in flattened data.
+    - Nulls do not trigger same-path conflicts.
+- Arrays are stored as-is, including any null elements inside them.
+- Flattened data is derived from nested data and never merged directly.
+
+4. Top-Level Fields
+
+To control same-path conflict behavior, the following top-level fields are introduced in the JSON:
+
+4.1 Field 1 – targetMod
+- Specifies which mod this JSON data should apply to.
+- If missing, defaults to the current mod being loaded.
+- Useful for cross-mod data overrides or additions.
+
+4.2 Field 2 – For conflicts where no array involves
+- Suggested name: samePathConflict
+- Allowed values: "ignore" or "overwrite"
+- Default: "ignore"
+- Behavior:
+  - If missing or invalid → default to "ignore".
+  - "ignore" → keep existing value (V1).
+  - "overwrite" → replace existing value (V1) with new value (V2). If the incoming value is null, no change is made.
+- Applies to conflicts where adding to an array at a specific index is not possible.
+
+4.3 Field 3 – For conflicts where at least one array involves
+- Suggested name: samePathConflictArray.
+- Allowed values: "ignore", "overwrite", or an integer.
+- Default: "ignore".
+- Behavior:
+  - If missing or invalid → default to "ignore".
+  - "ignore" → keep existing value (V1).
+  - "overwrite" → replace existing value (V1) with new value (V2). If the incoming value is null, no change is made.
+  - Integer → insert new value (V2) into existing array (V1) at the specified index:
+      - <0 → append to end.
+      - 0 → insert at beginning.
+      - >0 and < length of array → insert at that index.
+      - >= length of array → append to end.
+      - If the existing value is a primitive and the incoming value is an array, the existing value will be converted into an array containing that single element.
+- Applies to conflicts where adding to an array at a specific index is possible.
+
+5. Summary of Options
+
+- Always available: "ignore" and "overwrite"
+- Conditionally available: "add to array at index", when at least of the values is of type array.
+
+6. Notes
+
+- Null leaf values are ignored and **never stored** in flattened data.
+- Nulls do not trigger same-path conflicts.
+- Arrays are stored as-is, even if they contain null elements.
+- Validation should ensure field values are correct; fallback to defaults if invalid.
+- Default behavior ("ignore") ensures deterministic and safe merging.
+- This system allows modders to control conflict resolution explicitly while maintaining safe defaults.
+- If at least one of the existing value or the incoming value is an array, samePathConflictArray will be used to resolve the conflict.
+- If neither value is an array (both are primitives), samePathConflict will be used instead.
+- Deleting an existing key through JSON data files is not supported. If a mod intends to change or disable behavior defined by another mod, this must be done through scripting, not by deleting data.
