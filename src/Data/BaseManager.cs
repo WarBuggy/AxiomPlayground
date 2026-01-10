@@ -36,7 +36,7 @@ public abstract class BaseManager(string categoryName)
     /// Process all data in this category for a single mod.
     /// </summary>
     /// <param name="mod">The mod to process.</param>
-    private void LoadForMod(ModInstance mod)
+    protected virtual void LoadForMod(ModInstance mod)
     {
         DataContainer? container = DataManager.Instance.TryGetContainer(mod.ModId);
         if (container == null) return;

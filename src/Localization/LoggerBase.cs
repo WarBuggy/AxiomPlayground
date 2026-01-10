@@ -14,22 +14,22 @@ public abstract class LoggerBase
         ModId = modId;
     }
 
-    protected void Log(string key, params object[] args)
+    public void Log(string key, params object[] args)
     {
         Console.WriteLine($"[{ClassName}] Log: {StringUtils.LocalizeWithEndingFrom(ModId, ".", key, args)}");
     }
 
-    protected void LogWarning(string key, params object[] args)
+    public void LogWarning(string key, params object[] args)
     {
         Console.WriteLine($"[{ClassName}] Warning: {StringUtils.LocalizeWithEndingFrom(ModId, ".", key, args)}");
     }
 
-    protected void LogError(string key, params object[] args)
+    public void LogError(string key, params object[] args)
     {
         Console.WriteLine($"[{ClassName}] Error: {StringUtils.LocalizeWithEndingFrom(ModId, ".", key, args)}");
     }
 
-    protected void LogErrorWithEnding(string ending, string key, params object[] args)
+    public void LogErrorWithEnding(string ending, string key, params object[] args)
     {
         Console.WriteLine($"[{ClassName}] Error: {StringUtils.LocalizeWithEndingFrom(ModId, ending, key, args)}");
     }
