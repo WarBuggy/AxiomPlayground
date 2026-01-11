@@ -1,27 +1,23 @@
-using System.Reflection;
 using MoonSharp.Interpreter;
 
 namespace AxiomPlayground.Scripting.LuaBindings;
 
 public static class LuaBindingRegistrar
 {
-    private const string BINDINGS_NAMESPACE = "AxiomPlayground.Scripting.LuaBindings";
-
-    public static void RegisterAllBindings(Script luaScript)
+    public static List<string> RegisterAllBindings(
+    Script luaScript,
+    IEnumerable<Type> bindingTypes)
     {
-        var assembly = Assembly.GetExecutingAssembly();
-
-        var bindingTypes = assembly.GetTypes()
-            .Where(t => t.IsClass
-                        && !t.IsAbstract
-                        && t.IsSubclassOf(typeof(LuaBindingBase))
-                        && t.Namespace == BINDINGS_NAMESPACE);
+        List<string> registered = [];
 
         foreach (var type in bindingTypes)
         {
-            // Create instance and call Register
             var instance = (LuaBindingBase)Activator.CreateInstance(type)!;
             instance.Register(luaScript);
+
+            registered.Add(type.FullName ?? type.Name);
         }
+
+        return registered;
     }
 }

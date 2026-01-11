@@ -35,6 +35,9 @@ public sealed class ModManager
         { ModSource.Local, ("Mods/", new Dictionary<string, ModInstance>(StringComparer.OrdinalIgnoreCase)) }
     };
 
+    private readonly List<ModInstance> _finalModList = [];
+    public List<ModInstance> FinalModList => _finalModList;
+
     private ModManager() { }
 
     /// <summary>
@@ -54,13 +57,13 @@ public sealed class ModManager
     private void ScanFolder(ModSource source)
     {
         if (!_mods.TryGetValue(source, out var tuple))
-            throw new ArgumentException($"[AxiomPlayground.ModManager] Unknown mod source: {source}.");
+            throw new ArgumentException($"[ModManager] Unknown mod source: {source}.");
 
         string folderPath = tuple.Path;
         var targetDict = tuple.Mods;
 
         if (!Directory.Exists(folderPath))
-            throw new ArgumentException($"[AxiomPlayground.ModManager] Mod folder not found: {folderPath}.");
+            throw new ArgumentException($"[ModManager] Mod folder not found: {folderPath}.");
 
 
         foreach (var modDir in Directory.GetDirectories(folderPath))
@@ -97,7 +100,7 @@ public sealed class ModManager
     public string GetModFolderPath(ModInstance mod)
     {
         if (!_mods.TryGetValue(mod.Source, out var tuple))
-            throw new ArgumentException($"[AxiomPlayground.ModManager] Unknown mod source: {mod.Source}.");
+            throw new ArgumentException($"[ModManager] Unknown mod source: {mod.Source}.");
 
         return Path.Combine(tuple.Path, mod.ModId);
     }
@@ -107,7 +110,7 @@ public sealed class ModManager
         var localMods = _mods[ModSource.Local].Mods;
         // Core must exist in Local
         if (!localMods.ContainsKey(CORE_MOD_ID))
-            throw new InvalidOperationException($"[AxiomPlayground.ModManager] Mod '{CORE_MOD_ID}' must exist in Local mods.");
+            throw new InvalidOperationException($"[ModManager] Mod '{CORE_MOD_ID}' must exist in Local mods.");
 
         foreach (var modId in RESERVED_MOD_IDS)
         {
@@ -147,11 +150,10 @@ public sealed class ModManager
         return result;
     }
 
-
     /// <summary>
     /// Given a list of mods, removes duplicates based on ModId, keeping only the last occurrence.
     /// </summary>
-    public static List<ModInstance> GetFinalLoadableMods(List<ModInstance> mods)
+    public void PopulateFinalLoadableMods(List<ModInstance> mods)
     {
         var finalMods = new Dictionary<string, ModInstance>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in mods)
@@ -159,7 +161,7 @@ public sealed class ModManager
             // Each time we encounter a ModId, overwrite previous entry
             finalMods[mod.ModId] = mod;
         }
-        return [.. finalMods.Values];
+        _finalModList.Clear();
+        _finalModList.AddRange([.. finalMods.Values]);
     }
-
 }

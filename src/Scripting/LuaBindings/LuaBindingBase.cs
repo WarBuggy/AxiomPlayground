@@ -1,12 +1,11 @@
 using MoonSharp.Interpreter;
 
-namespace AxiomPlayground.Scripting.LuaBindings
+namespace AxiomPlayground.Scripting.LuaBindings;
+
+public abstract class LuaBindingBase
 {
-    public abstract class LuaBindingBase
-    {
-        /// <summary>
-        /// Each binding class implements this to register its functions to Lua.
-        /// </summary>
-        public abstract void Register(Script luaScript);
-    }
+    /// <summary>
+    /// Each binding class implements this to register its functions to Lua.
+    /// </summary>
+    public abstract void Register(Script luaScript);
 }

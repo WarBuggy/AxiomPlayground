@@ -1,0 +1,30 @@
+### Lua Event Registration: Common Pitfall
+
+Problem:
+When registering event handlers in Lua, it’s easy to accidentally call the function immediately instead of passing the function itself as a callback.
+
+Example of incorrect usage:
+
+-- This calls the function immediately and passes its result (likely nil)
+Events.OnDraw.Add(drawAnimation("player"))
+
+- drawAnimation("player") is executed right away.
+- Events.OnDraw.Add() receives the return value of the function, not a callable function.
+- The C# event system expects a Lua function (DataType.Function), so this can cause runtime errors or no effect at all.
+
+Correct Usage:
+
+Wrap the call in an anonymous function (closure) to defer execution:
+
+-- Pass a function to be called later
+Events.OnDraw.Add(function()
+    drawAnimation("player")
+end)
+
+- The anonymous function itself is registered as the event handler.
+- drawAnimation("player") runs only when the event is fired, not immediately.
+- This pattern ensures compatibility with the C# EventLuaBinding and prevents runtime errors.
+
+Tip for Modders:
+- Always pass a function to .Add() methods, never the result of a function call.
+- If you need parameters, wrap the call in an anonymous function (function() ... end).
