@@ -2,6 +2,7 @@ using System.Text.Json;
 using MoonSharp.Interpreter;
 using AxiomPlayground.Modding;
 using AxiomPlayground.Scripting.LuaBindings;
+using AxiomPlayground.Scripting.Libraries;
 
 namespace AxiomPlayground.Scripting;
 
@@ -11,38 +12,42 @@ public sealed class ScriptManager
     public static ScriptManager Instance => _instance;
 
     private const string SCRIPT_FOLDER = "Scripts";
+    public static readonly string CURRENT_SCRIPT_PATH_KEY = "_CurrentScriptPath";
 
     // modId -> relative script path -> ScriptEntry
-    private readonly Dictionary<string, Dictionary<string, ScriptEntry>> _scripts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, ScriptEntry>> _scripts =
+        new(StringComparer.OrdinalIgnoreCase);
 
     // modId -> Lua Script instance (one per mod)
-    private readonly Dictionary<string, Script> _modLuaScripts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Script> _modLuaScripts =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
+    private readonly JsonSerializerOptions _jsonSerializerOptions =
+        new() { PropertyNameCaseInsensitive = true };
 
-    // Tracks the mod currently executing a script
     private string? _currentExecutingModId;
     public string CurrentExecutingModId => _currentExecutingModId ?? "Unknown";
+
     private readonly List<Type> _luaBindingTypes;
     private readonly LuaEventBus _eventBus = new();
 
     private ScriptManager()
     {
-        _luaBindingTypes = [.. AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a =>
-            {
-                try { return a.GetTypes(); }
-                catch { return []; }
-            })
-            .Where(t => t.IsClass
-                        && !t.IsAbstract
-                        && t.IsSubclassOf(typeof(LuaBindingBase)))];
+        _luaBindingTypes =
+        [
+            .. AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a =>
+                {
+                    try { return a.GetTypes(); }
+                    catch { return []; }
+                })
+                .Where(t =>
+                    t.IsClass &&
+                    !t.IsAbstract &&
+                    t.IsSubclassOf(typeof(LuaBindingBase)))
+        ];
     }
 
-    /// <summary>
-    /// Load all Lua scripts from the given mods.
-    /// Scripts are stored but not executed yet.
-    /// </summary>
     public void LoadAll(List<ModInstance> mods)
     {
         if (mods == null || mods.Count == 0)
@@ -53,7 +58,6 @@ public sealed class ScriptManager
         foreach (var mod in mods)
         {
             string scriptsRoot = Path.Combine(ModManager.Instance.GetModFolderPath(mod), SCRIPT_FOLDER);
-
             if (!Directory.Exists(scriptsRoot))
                 continue;
 
@@ -67,79 +71,94 @@ public sealed class ScriptManager
             {
                 string relativePath = Path.GetRelativePath(scriptsRoot, luaFile).Replace("\\", "/");
                 string metaPath = Path.ChangeExtension(luaFile, ".json");
-                ScriptMeta? meta = null;
 
+                ScriptMeta? meta = null;
                 if (File.Exists(metaPath))
                 {
                     try
                     {
                         meta = JsonSerializer.Deserialize<ScriptMeta>(File.ReadAllText(metaPath), _jsonSerializerOptions);
                     }
-                    catch
-                    {
-                        meta = null;
-                    }
+                    catch { meta = null; }
                 }
 
                 bool hasOverwrite = !string.IsNullOrEmpty(meta?.Overwrite);
                 bool hasAddTo = !string.IsNullOrEmpty(meta?.AddTo);
+                string? libraryName = meta?.Library;
+                bool hasLibrary = !string.IsNullOrEmpty(libraryName);
 
-                // Overwrite takes precedence
                 string targetModId = mod.ModId;
                 bool isOverwrite = false;
-                bool isAddTo = false;
+                bool isLibrary = false;
 
                 if (hasOverwrite)
                 {
-                    if (!validModIds.Contains(meta!.Overwrite!))
+                    targetModId = meta!.Overwrite!;
+                    if (!validModIds.Contains(targetModId))
                     {
-                        Console.WriteLine($"[ScriptManager] Script '{relativePath}' in mod '{mod.ModId}' specifies invalid overwrite target '{meta.Overwrite}'.");
+                        Console.WriteLine($"[ScriptManager] Overwrite target '{targetModId}' invalid. Skipping '{relativePath}'.");
                         continue;
                     }
-                    targetModId = meta.Overwrite!;
                     isOverwrite = true;
                 }
                 else if (hasAddTo)
                 {
-                    if (!validModIds.Contains(meta!.AddTo!))
+                    targetModId = meta!.AddTo!;
+                    if (!validModIds.Contains(targetModId))
                     {
-                        Console.WriteLine($"[ScriptManager] Script '{relativePath}' in mod '{mod.ModId}' specifies invalid addTo target '{meta.AddTo}'.");
+                        Console.WriteLine($"[ScriptManager] AddTo target '{targetModId}' invalid. Skipping '{relativePath}'.");
                         continue;
                     }
-                    targetModId = meta.AddTo!;
-                    isAddTo = true;
+                }
+                else if (hasLibrary)
+                {
+                    bool nameExists = _scripts.Values
+                        .SelectMany(modDict => modDict.Values)
+                        .Any(entry => entry.IsLibrary && entry.LibraryName != null &&
+                                    entry.LibraryName.Equals(libraryName, StringComparison.OrdinalIgnoreCase));
+
+
+                    if (nameExists)
+                    {
+                        Console.WriteLine(
+                            $"[ScriptManager] Library name '{libraryName}' already declared by another script. Skipping '{relativePath}'.");
+                        continue;
+                    }
+                    isLibrary = true;
                 }
 
-                bool pathExists = _scripts.TryGetValue(targetModId, out var targetModDict) && targetModDict.ContainsKey(relativePath);
+                bool targetExists = _scripts.TryGetValue(targetModId, out var targetDict) && targetDict.ContainsKey(relativePath);
 
-                // Enforce rules
-                if (isOverwrite && !pathExists)
+                if (isOverwrite && !targetExists)
                 {
-                    Console.WriteLine($"[ScriptManager] Overwrite ignored: '{relativePath}' targets '{targetModId}' but no script exists at that path.");
+                    Console.WriteLine($"[ScriptManager] Overwrite ignored: '{relativePath}' targets '{targetModId}' but no script exists.");
                     continue;
                 }
-                if (isAddTo && pathExists)
+                if (hasAddTo && targetExists)
                 {
                     Console.WriteLine($"[ScriptManager] AddTo ignored: '{relativePath}' targets '{targetModId}' but path already exists.");
                     continue;
                 }
 
-                if (!_scripts.TryGetValue(targetModId, out targetModDict))
+                if (!_scripts.TryGetValue(targetModId, out targetDict))
                 {
-                    targetModDict = new Dictionary<string, ScriptEntry>(StringComparer.OrdinalIgnoreCase);
-                    _scripts[targetModId] = targetModDict;
+                    targetDict = new Dictionary<string, ScriptEntry>(StringComparer.OrdinalIgnoreCase);
+                    _scripts[targetModId] = targetDict;
                 }
 
-                targetModDict[relativePath] = new ScriptEntry(luaFile, targetModId, relativePath, mod.ModId, isOverwrite);
+                targetDict[relativePath] = new ScriptEntry(
+                    luaFile,
+                    targetModId,
+                    relativePath,
+                    mod.ModId,
+                    isOverwrite,
+                    isLibrary,
+                    libraryName
+                );
             }
         }
     }
 
-    /// <summary>
-    /// Executes all scripts for all mods.
-    /// Top-level code in scripts runs once per mod.
-    /// Event functions (e.g., OnDraw.Add) are available and preserved.
-    /// </summary>
     public void ExecuteAllModsScripts()
     {
         int expectedBindingCount = _luaBindingTypes.Count;
@@ -150,49 +169,29 @@ public sealed class ScriptManager
             {
                 luaScript = new Script(CoreModules.Preset_Default);
 
-                var registeredBindings =
-                    LuaBindingRegistrar.RegisterAllBindings(luaScript, _luaBindingTypes);
-                int registeredCount = registeredBindings.Count;
-                if (registeredCount == expectedBindingCount)
-                {
-                    Console.WriteLine(
-                        $"[ScriptManager] Lua bindings registered for mod '{modId}': {registeredCount}/{expectedBindingCount}");
-                }
-                else
-                {
-                    Console.WriteLine(
-                        $"[ScriptManager][WARNING] Lua bindings mismatch for mod '{modId}': " +
-                        $"{registeredCount}/{expectedBindingCount}");
+                LuaBindingRegistrar.RegisterAllBindings(luaScript, _luaBindingTypes);
 
-                    var missing = _luaBindingTypes
-                        .Select(t => t.FullName ?? t.Name)
-                        .Except(registeredBindings);
+                new EventLuaBinding(_eventBus, modId).Register(luaScript);
 
-                    foreach (var m in missing)
-                        Console.WriteLine($"  - Missing binding: {m}");
-                }
-
-                var eventBinding = new EventLuaBinding(_eventBus, modId);
-                eventBinding.Register(luaScript);
+                new LibraryLuaBinding(modId).Register(luaScript);
 
                 _modLuaScripts[modId] = luaScript;
             }
 
-            foreach (var scriptEntry in _scripts[modId].Values)
+            foreach (var scriptEntry in
+                     _scripts[modId].Values.OrderByDescending(s => s.IsLibrary))
             {
                 scriptEntry.Execute(luaScript);
             }
         }
     }
 
-    /// <summary>
-    /// Returns the Lua Script instance for a mod.
-    /// Use this when running individual scripts or events.
-    /// </summary>
     public Script GetModScript(string modId)
     {
         if (!_modLuaScripts.TryGetValue(modId, out var luaScript))
-            throw new KeyNotFoundException($"No Lua script instance found for mod '{modId}'. Did you forget to execute ExecuteAllModsScripts()?");
+            throw new KeyNotFoundException(
+                $"[ScriptManager] No Lua script instance found for mod '{modId}'.");
+
         return luaScript;
     }
 
@@ -205,48 +204,69 @@ public sealed class ScriptManager
 
         foreach (var kv in handlers)
         {
-            string handlerModId = kv.Key;
-            var previousModId = Instance._currentExecutingModId;
-            Instance._currentExecutingModId = handlerModId;
+            var previous = _currentExecutingModId;
+            _currentExecutingModId = kv.Key;
 
             foreach (var fn in kv.Value)
             {
-                try
-                {
-                    fn.Call(args);
-                }
-                catch (ScriptRuntimeException ex)
-                {
-                    Console.WriteLine($"[ScriptManager] Event '{eventName}' (mod '{handlerModId}') encountered error: {ex.DecoratedMessage}");
-                }
+                try { fn.Call(args); }
+                catch (ScriptRuntimeException) { }
             }
-            Instance._currentExecutingModId = previousModId;
+
+            _currentExecutingModId = previous;
         }
     }
 
     /// <summary>
     /// Represents a loaded Lua script.
     /// </summary>
-    public sealed class ScriptEntry(string filePath, string modId, string relativePath, string owningModId, bool isOverwrite)
+    public sealed class ScriptEntry(string filePath, string modId, string relativePath, string owningModId, bool isOverwrite, bool isLibrary, string? libraryName = null)
     {
         public string FilePath { get; } = filePath;
         public string ModId { get; } = modId;
         public string RelativePath { get; } = relativePath;
         public string OwningModId { get; } = owningModId;
         public bool IsOverwrite { get; } = isOverwrite;
+        public bool IsLibrary { get; } = isLibrary;
+        public string? LibraryName { get; } = libraryName;
 
         /// <summary>
         /// Executes the script using a provided Lua Script instance.
+        /// If IsLibrary is true, publishes the library to LibraryManager.
         /// </summary>
         public void Execute(Script luaScript)
         {
-            var previousModId = Instance._currentExecutingModId;
-            Instance._currentExecutingModId = ModId;
+            var previousModId = ScriptManager.Instance._currentExecutingModId;
+            ScriptManager.Instance._currentExecutingModId = ModId;
 
             try
             {
                 string code = File.ReadAllText(FilePath);
-                luaScript.DoString(code, codeFriendlyName: RelativePath);
+                luaScript.Globals[ScriptManager.CURRENT_SCRIPT_PATH_KEY] = RelativePath;
+
+                if (IsLibrary && LibraryName != null)
+                {
+                    LibraryManager.Instance.RegisterLibrary(
+                        publishingModId: ModId,
+                        libraryName: LibraryName,
+                        libraryTable: null,        // Will be created when fetched
+                        publishScriptPath: RelativePath,
+                        luaText: code              // Store the Lua text for later execution
+                    );
+
+                    Console.WriteLine(
+                        $"[ScriptManager] Library registered: {ModId}.{LibraryName} from '{RelativePath}'.");
+
+                    // Inject as global in the mod that owns it
+                    // To do after we get Get and Patch working
+                    // Lazy placeholder in the mod that owns the library
+                    luaScript.Globals[LibraryName] = new Table(luaScript);
+                }
+                else
+                {
+                    // Normal script execution
+                    luaScript.DoString(code, codeFriendlyName: RelativePath);
+                }
             }
             catch (ScriptRuntimeException ex)
             {
@@ -272,17 +292,16 @@ public sealed class ScriptManager
             }
             finally
             {
-                Instance._currentExecutingModId = previousModId;
+                ScriptManager.Instance._currentExecutingModId = previousModId;
             }
         }
+
     }
 
-    /// <summary>
-    /// Optional meta file for a Lua script.
-    /// </summary>
     private sealed class ScriptMeta
     {
         public string? Overwrite { get; set; }
         public string? AddTo { get; set; }
+        public string? Library { get; set; }
     }
 }

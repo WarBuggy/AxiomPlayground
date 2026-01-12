@@ -1,0 +1,254 @@
+### Lua Event Registration: Common Pitfall
+
+Problem:
+When registering event handlers in Lua, it’s easy to accidentally call the function immediately instead of passing the function itself as a callback.
+
+Example of incorrect usage:
+
+-- This calls the function immediately and passes its result (likely nil)
+Events.OnDraw.Add(drawAnimation("player"))
+
+- drawAnimation("player") is executed right away.
+- Events.OnDraw.Add() receives the return value of the function, not a callable function.
+- The C# event system expects a Lua function (DataType.Function), so this can cause runtime errors or no effect at all.
+
+Correct Usage:
+
+Wrap the call in an anonymous function (closure) to defer execution:
+
+-- Pass a function to be called later
+Events.OnDraw.Add(function()
+    drawAnimation("player")
+end)
+
+- The anonymous function itself is registered as the event handler.
+- drawAnimation("player") runs only when the event is fired, not immediately.
+- This pattern ensures compatibility with the C# EventLuaBinding and prevents runtime errors.
+
+Tip for Modders:
+- Always pass a function to .Add() methods, never the result of a function call.
+- If you need parameters, wrap the call in an anonymous function (function() ... end).
+
+
+LIBRARY SCRIPTING - REQUIREMENTS AND DESIGN NOTES
+===============================================
+
+GOAL
+----
+Allow mods to publish reusable Lua libraries and allow other mods to:
+- Call those libraries
+- Patch / override parts of them
+- Share utility logic safely
+- Preserve precise error ownership and attribution
+
+
+CORE PRINCIPLES
+---------------
+1. Every Lua function belongs to exactly one mod.
+2. A mod "owns" a function if that function was created (compiled) in that mod’s Lua Script instance.
+3. Errors are always attributed to the mod that owns the function that threw the error.
+4. Library patching must never hide or rewrite function ownership.
+5. The engine must never fabricate or guess mod ownership.
+
+
+SCRIPT OWNERSHIP RULES
+---------------------
+1. Each mod has its own MoonSharp Script instance.
+2. All Lua code for a mod is executed only inside that mod’s Script instance.
+3. Lua closures retain a reference to the Script they were created in.
+4. ScriptManager must track the currently executing mod via execution context.
+5. _currentExecutingModId must be set only by ScriptManager and restored after execution.
+
+
+LIBRARY PUBLISHING
+------------------
+1. A mod may publish a library by explicitly registering it.
+2. A library is a Lua table containing functions and data.
+3. Library functions are created inside the publishing mod’s Script instance.
+4. Published libraries are globally discoverable but not globally owned.
+5. Library identity must include:
+   - Publishing mod id
+   - Library name
+   Example: "modA.LibA"
+
+
+LIBRARY ACCESS
+--------------
+1. Mods may call library functions from other mods.
+2. Calling a library function does NOT change function ownership.
+3. Errors thrown inside a library function are attributed to the publishing mod.
+4. ScriptManager must not switch ownership context when calling a foreign library function.
+
+
+LIBRARY PATCHING
+----------------
+1. Any mod may patch a library published by another mod.
+2. Patching is explicit and opt-in.
+3. A patch is a function executed inside the patching mod’s Script instance.
+4. Patches receive the target library table as input.
+5. Patches may replace, wrap, or extend library functions.
+6. Any function created by a patch belongs to the patching mod.
+7. Wrapped functions may call original library functions.
+8. Function ownership must not be transferred or merged.
+
+
+PATCH OWNERSHIP AND ERROR ATTRIBUTION
+-------------------------------------
+1. Errors thrown inside patched code belong to the patching mod.
+2. Errors thrown inside original library code belong to the original mod.
+3. Mixed call stacks must show correct mod transitions.
+4. Error reporting must indicate:
+   - Faulting mod
+   - Function name (if available)
+   - Library name
+   - Whether the function was patched
+5. ScriptManager must never suppress MoonSharp stack traces.
+
+
+ENGINE CONSTRAINTS (NON-NEGOTIABLE)
+-----------------------------------
+1. Do NOT recompile Lua functions in C#.
+2. Do NOT wrap Lua functions using DynValue.NewCallback.
+3. Do NOT proxy Lua calls through engine callbacks.
+4. Do NOT clone functions across Script instances.
+5. Do NOT execute patch code inside the target mod’s Script.
+
+
+EXECUTION CONTEXT MANAGEMENT
+----------------------------
+1. ScriptManager is the sole authority over execution context.
+2. _currentExecutingModId must be set:
+   - Before executing a script file
+   - Before firing an event handler
+3. _currentExecutingModId must be restored after execution.
+4. No LuaBinding may set CurrentExecutingModId directly.
+
+
+EVENT SYSTEM REQUIREMENTS
+-------------------------
+1. Event handlers must be registered as Lua functions.
+2. Event registration must record the owning mod id.
+3. Event firing must:
+   - Switch execution context per handler
+   - Restore context afterward
+4. Event systems must never infer mod id from runtime state.
+
+
+MODDER-FACING RULES (DOCUMENTATION)
+----------------------------------
+1. Always pass functions, never call them during registration.
+   Correct:
+     Events.OnDraw.Add(drawAnimation)
+   Incorrect:
+     Events.OnDraw.Add(drawAnimation("player"))
+
+2. Library patches own their changes.
+3. If you patch a library, you are responsible for errors you introduce.
+4. Original library authors remain responsible for original code errors.
+5. Avoid global state unless explicitly designed for it.
+
+
+DEBUGGING AND ERROR REPORTING
+-----------------------------
+1. Error messages must include:
+   - Executing mod
+   - Owning mod of faulting code
+   - Script path (if available)
+2. Errors must never be reported as "Unknown" unless ownership truly cannot be determined.
+3. ScriptManager must be the only place where mod ownership is resolved.
+
+
+FUTURE EXTENSIONS (OPTIONAL)
+----------------------------
+- Library versioning
+- Patch priority / ordering
+- Patch enable/disable flags
+- Patch conflict detection
+- Read-only library exports
+- Optional "patched by" metadata for diagnostics
+
+
+DESIGN PHILOSOPHY
+-----------------
+- Ownership over convenience
+- Transparency over magic
+- Accountability over flexibility
+- Modder mistakes should fail loudly and clearly
+- The engine must never lie about where a bug comes from
+
+
+Nice to have features
+
+Lua-exposed PatchHistory
+If you want modders to inspect which mods patched a library in Lua
+Could expose as a read-only table when calling Library.Get(libraryId)
+
+Error reporting enhancements
+Include patch history in decorated error messages for easier debugging
+Optional, but useful for multi-mod scenarios
+
+
+AxiomPlayground Lua Library System - Mechanism Overview
+
+1. Purpose
+------------
+The library system allows mods to define reusable Lua tables (libraries) that can be consumed or patched by other mods. It ensures that libraries are:
+- Published once per mod with a unique name.
+- Lazily executed: code only runs when a mod actually needs it.
+- Trackable: supports patching by other mods while maintaining original ownership.
+
+2. Library Declaration
+-----------------------
+- A library is defined by a Lua script file and its corresponding JSON metadata.
+- The JSON file specifies a "Library" key with the library name.
+- The Lua script should declare exactly one table (the library table) and its functions/fields.
+
+Example:
+    MathUtils = {}
+    function MathUtils.Add(a, b) return a + b end
+    function MathUtils.Div(a, b) if b==0 then error("Division by zero!") end return a/b end
+
+3. Registration
+----------------
+When a library script is loaded by ScriptManager:
+- The Lua code is **not executed immediately**.
+- The entire content of the Lua file is read as text.
+- A LibraryRecord is created and stored in LibraryManager with:
+    - Publishing mod ID
+    - Library name
+    - Lua text (for later execution)
+    - Optional Lua table (null initially)
+    - Publish order
+- The library is optionally injected as a global in its owning mod after first execution.
+
+4. Lazy Execution
+------------------
+- When another mod calls `Library.Get("ModId.LibraryName")`:
+    1. LibraryManager retrieves the LibraryRecord.
+    2. If the LibraryTable is null (not yet executed):
+        - The saved Lua text is executed in the calling mod’s Lua Script instance.
+        - The chunk **must return a table**, which becomes the LibraryTable.
+        - LibraryManager caches the table in the LibraryRecord.
+    3. The LibraryTable is returned to the caller.
+
+- This allows each mod to have its own execution context, avoiding shared-state issues while still providing reusable code.
+
+5. Patching
+------------
+- Mods can patch an existing library using `Library.Patch("ModId.LibraryName", patchFunction)`.
+- The patch is recorded in the LibraryRecord, and the patch function is executed in the current mod’s context.
+- Patch functions can modify the table returned by `Library.Get` or add new functions/fields.
+
+6. Advantages
+-------------
+- **Lazy evaluation** ensures that only used libraries are executed, reducing unnecessary work.
+- **Per-mod execution** allows each mod to safely use libraries without global conflicts.
+- **Readable and maintainable**: the library text is preserved as-is, making it easy to edit in the editor.
+- **Supports mod interoperability** via patching and tracking.
+
+7. Summary
+-----------
+The system separates **registration**, **storage**, and **execution**:
+- Registration: store Lua text and metadata.
+- Storage: LibraryManager keeps a record with a cache slot for the table.
+- Execution: only runs when a mod requests the library, ensuring isolation and laziness.
