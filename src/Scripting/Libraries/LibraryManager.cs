@@ -2,21 +2,16 @@ using MoonSharp.Interpreter;
 
 namespace AxiomPlayground.Scripting.Libraries;
 
-/// <summary>
-/// Manages published Lua libraries.
-/// </summary>
 public sealed class LibraryManager
 {
-    public static LibraryManager Instance { get; } = new();
+    private static readonly LibraryManager _instance = new();
+    public static LibraryManager Instance => _instance;
 
-    private readonly Dictionary<LibraryId, LibraryRecord> _libraries = [];
+    private readonly Dictionary<string, LibraryRecord> _libraries = new(StringComparer.OrdinalIgnoreCase);
     private int _publishCounter = 0;
 
     private LibraryManager() { }
 
-    /// <summary>
-    /// Register (publish) a library.
-    /// </summary>
     public void RegisterLibrary(
         string publishingModId,
         string libraryName,
@@ -24,11 +19,8 @@ public sealed class LibraryManager
         string publishScriptPath,
         string luaText)
     {
-        var id = new LibraryId(publishingModId, libraryName);
-
-        if (_libraries.ContainsKey(id))
-            throw new ScriptRuntimeException(
-                $"[LibraryManager] Library '{id}' already published.");
+        if (_libraries.ContainsKey(libraryName))
+            throw new ScriptRuntimeException($"[LibraryManager] Library '{libraryName}' already published.");
 
         var record = new LibraryRecord(
             publishingModId,
@@ -39,28 +31,23 @@ public sealed class LibraryManager
             luaText
         );
 
-        _libraries[id] = record;
+        _libraries[libraryName] = record;
+        Console.WriteLine($"[LibraryManager] Library registered: {libraryName} from '{publishingModId}', '{publishScriptPath}'.");
     }
 
-    /// <summary>
-    /// Get a library by full name (modId.libraryName)
-    /// </summary>
-    public LibraryRecord Get(string fullName)
+    public void AddLibraryPatch(string patchingModId, string libraryName, string relativePath, string luaText)
     {
-        var id = LibraryId.Parse(fullName);
+        if (!_libraries.TryGetValue(libraryName, out var record))
+            throw new ScriptRuntimeException($"[LibraryManager] Library '{libraryName}' not found.");
 
-        if (!_libraries.TryGetValue(id, out var record))
-            throw new ScriptRuntimeException($"[LibraryManager] Library '{fullName}' not found.");
+        record.AddPatch(patchingModId, relativePath, luaText);
 
-        return record;
+        Console.WriteLine(
+            $"[LibraryManager] Patch registered: {patchingModId} patched {libraryName} with '{relativePath}'.");
     }
 
-    /// <summary>
-    /// Patch a library: record which mod patched it.
-    /// </summary>
-    public void Patch(string fullName, string patchingModId)
-    {
-        var record = Get(fullName);
-        record.AddPatch(patchingModId);
-    }
+    public IReadOnlyList<LibraryRecord> GetAllLibraries() => [.. _libraries.Values];
+
+    public bool CheckNameExists(string name) => _libraries.ContainsKey(name);
 }
+

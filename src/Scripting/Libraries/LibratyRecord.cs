@@ -2,9 +2,6 @@ using MoonSharp.Interpreter;
 
 namespace AxiomPlayground.Scripting.Libraries;
 
-/// <summary>
-/// Represents a published library record.
-/// </summary>
 public sealed class LibraryRecord(
     string publishingModId,
     string libraryName,
@@ -15,33 +12,31 @@ public sealed class LibraryRecord(
 {
     public string PublishingModId { get; } = publishingModId;
     public string LibraryName { get; } = libraryName;
-
-    /// <summary>
-    /// Lua table of the library. Can be null initially for text-based libraries.
-    /// </summary>
     public Table? LibraryTable { get; set; } = libraryTable;
-
-    /// <summary>
-    /// The Lua script file path (optional).
-    /// </summary>
     public string PublishScriptPath { get; } = publishScriptPath;
-
-    /// <summary>
-    /// The Lua text content of the library script.
-    /// </summary>
     public string LuaText { get; } = luaText ?? throw new ArgumentNullException(nameof(luaText));
-
-    /// <summary>
-    /// Publish order counter
-    /// </summary>
     public int PublishOrder { get; } = publishOrder;
+    private readonly Dictionary<string, List<(string reltivePath, string luaText)>> _patchScriptsByMod = [];
+    public IReadOnlyDictionary<string, List<(string reltivePath, string luaText)>> PatchScriptsByMod => _patchScriptsByMod;
 
-    private readonly List<string> _patchingModIds = new();
-    public IReadOnlyList<string> PatchingModIds => _patchingModIds;
-
-    public void AddPatch(string patchingModId)
+    public void AddPatch(string patchingModId, string relativePath, string luaText)
     {
-        if (!_patchingModIds.Contains(patchingModId, StringComparer.OrdinalIgnoreCase))
-            _patchingModIds.Add(patchingModId);
+        if (string.IsNullOrWhiteSpace(patchingModId))
+            throw new ArgumentException("[LibraryRecord] patchingModId cannot be null or empty", nameof(patchingModId));
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+            throw new ArgumentException("[LibraryRecord] relativePath cannot be null or empty", nameof(relativePath));
+
+        if (string.IsNullOrWhiteSpace(luaText))
+
+            throw new ArgumentException("[LibraryRecord] filePath cannot be null or empty", nameof(luaText));
+
+        if (!_patchScriptsByMod.TryGetValue(patchingModId, out var list))
+        {
+            list = [];
+            _patchScriptsByMod[patchingModId] = list;
+        }
+
+        list.Add((relativePath, luaText));
     }
 }
