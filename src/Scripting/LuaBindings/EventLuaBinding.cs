@@ -2,10 +2,9 @@ using MoonSharp.Interpreter;
 
 namespace AxiomPlayground.Scripting.LuaBindings;
 
-public sealed class EventLuaBinding(LuaEventBus eventBus, string modId)
+public sealed class EventLuaBinding(LuaEventBus eventBus)
 {
     private readonly LuaEventBus _eventBus = eventBus;
-    private readonly string _modId = modId;
 
     public void Register(Script script)
     {
@@ -16,7 +15,7 @@ public sealed class EventLuaBinding(LuaEventBus eventBus, string modId)
             if (fn.Type != DataType.Function)
                 throw new ScriptRuntimeException("EventLuaBinding] Event handler must be a function.");
 
-            _eventBus.Register(eventName, _modId, fn.Function);
+            _eventBus.Register(eventName, ScriptManager.Instance.CurrentExecutingModId, fn.Function);
         });
 
         script.Globals["Events"] = eventsTable;
