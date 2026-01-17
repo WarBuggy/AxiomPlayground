@@ -6,12 +6,12 @@ public enum ModSource
     Local
 }
 
-public sealed class ModInstance(string modId, ModSource source)
+public sealed class Mod(string modId, ModSource source)
 {
     public string ModId { get; set; } = modId;
     public string DisplayName { get; set; } = modId;
     public ModSource Source { get; set; } = source;
-    public bool Enable { get; set; } = true;
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class ModManager
@@ -28,15 +28,16 @@ public sealed class ModManager
             "DLC3",
         ];
     // Single dictionary: ModSource -> (BasePath, Mods dictionary)
-    private readonly Dictionary<ModSource, (string Path, Dictionary<string, ModInstance> Mods)> _mods
+    private readonly Dictionary<ModSource, (string Path, Dictionary<string, Mod> Mods)> _mods
         = new()
     {
-        { ModSource.Steam, ("Steam/workshop/content/gameId/", new Dictionary<string, ModInstance>(StringComparer.OrdinalIgnoreCase)) },
-        { ModSource.Local, ("Mods/", new Dictionary<string, ModInstance>(StringComparer.OrdinalIgnoreCase)) }
+        { ModSource.Steam, ("Steam/workshop/content/gameId/", new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase)) },
+        { ModSource.Local, ("Mods/", new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase)) }
     };
 
-    private readonly List<ModInstance> _finalModList = [];
-    public List<ModInstance> FinalModList => _finalModList;
+    private readonly List<Mod> _finalModList = [];
+    public List<Mod> FinalModList => _finalModList;
+    private readonly Dictionary<string, string> _finalModFolderPathCache = new(StringComparer.OrdinalIgnoreCase);
 
     private ModManager() { }
 
@@ -72,7 +73,7 @@ public sealed class ModManager
 
             // Remove any existing entry with the same modId before adding the new one
             targetDict.Remove(modId);
-            targetDict[modId] = new ModInstance(modId, source);
+            targetDict[modId] = new Mod(modId, source);
         }
     }
 
@@ -86,7 +87,7 @@ public sealed class ModManager
 
         foreach (var modId in steamMods.Keys)
         {
-            if (localMods.TryGetValue(modId, out ModInstance? localMod))
+            if (localMods.TryGetValue(modId, out Mod? localMod))
             {
                 steamMods[modId].DisplayName = $"{modId} (Steam)";
                 localMod.DisplayName = $"{modId} (Local)";
@@ -97,12 +98,20 @@ public sealed class ModManager
     /// <summary>
     /// Compute the full folder path for a given mod.
     /// </summary>
-    public string GetModFolderPath(ModInstance mod)
+    public string GetModFolderPath(Mod mod)
     {
         if (!_mods.TryGetValue(mod.Source, out var tuple))
             throw new ArgumentException($"[ModManager] Unknown mod source: {mod.Source}.");
 
         return Path.Combine(tuple.Path, mod.ModId);
+    }
+
+    public string GetModFolderPath(string modId)
+    {
+        if (_finalModFolderPathCache.TryGetValue(modId, out var path))
+            return path;
+
+        throw new ArgumentException($"[ModManager] Unknown modId: {modId}");
     }
 
     private void EnforceReservedModConstraints()
@@ -125,11 +134,11 @@ public sealed class ModManager
         }
     }
 
-    public List<ModInstance> GetAllModsSortedByDisplayName()
+    public List<Mod> GetAllModsSortedByDisplayName()
     {
-        var result = new List<ModInstance>();
+        var result = new List<Mod>();
 
-        var allMods = new List<ModInstance>();
+        var allMods = new List<Mod>();
         foreach (var tuple in _mods.Values)
             allMods.AddRange(tuple.Mods.Values);
 
@@ -153,15 +162,23 @@ public sealed class ModManager
     /// <summary>
     /// Given a list of mods, removes duplicates based on ModId, keeping only the last occurrence.
     /// </summary>
-    public void PopulateFinalLoadableMods(List<ModInstance> mods)
+    public void PopulateFinalLoadableMods(List<Mod> mods)
     {
-        var finalMods = new Dictionary<string, ModInstance>(StringComparer.OrdinalIgnoreCase);
+        var finalMods = new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in mods)
         {
             // Each time we encounter a ModId, overwrite previous entry
             finalMods[mod.ModId] = mod;
         }
+
         _finalModList.Clear();
         _finalModList.AddRange([.. finalMods.Values]);
+
+        // Build the modId → folder path cache
+        _finalModFolderPathCache.Clear();
+        foreach (var mod in _finalModList)
+        {
+            _finalModFolderPathCache[mod.ModId] = Path.Combine(_mods[mod.Source].Path, mod.ModId);
+        }
     }
 }
