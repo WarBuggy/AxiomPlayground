@@ -1,19 +1,5 @@
 namespace AxiomPlayground.Modding;
 
-public enum ModSource
-{
-    Steam,
-    Local
-}
-
-public sealed class Mod(string modId, ModSource source)
-{
-    public string ModId { get; set; } = modId;
-    public string DisplayName { get; set; } = modId;
-    public ModSource Source { get; set; } = source;
-    public bool Enabled { get; set; } = true;
-}
-
 public sealed class ModManager
 {
     private static readonly ModManager _instance = new();
@@ -180,5 +166,22 @@ public sealed class ModManager
         {
             _finalModFolderPathCache[mod.ModId] = Path.Combine(_mods[mod.Source].Path, mod.ModId);
         }
+    }
+
+    public bool TryGetMod(string modId, out Mod mod)
+    {
+        mod = null!;
+
+        if (string.IsNullOrWhiteSpace(modId))
+            return false;
+
+        var found = _finalModList.Find(
+            m => m.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase));
+
+        if (found == null)
+            return false;
+
+        mod = found;
+        return true;
     }
 }
