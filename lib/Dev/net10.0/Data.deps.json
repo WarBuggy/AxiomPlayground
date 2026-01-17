@@ -8,11 +8,20 @@
     ".NETCoreApp,Version=v10.0": {
       "Data/1.0.0": {
         "dependencies": {
+          "GameFlag": "1.0.0",
           "Modding": "1.0.0",
           "MoonSharp.Interpreter": "2.0.0.0"
         },
         "runtime": {
           "Data.dll": {}
+        }
+      },
+      "GameFlag/1.0.0": {
+        "runtime": {
+          "GameFlag.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
         }
       },
       "Modding/1.0.0": {
@@ -35,6 +44,11 @@
   },
   "libraries": {
     "Data/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "GameFlag/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

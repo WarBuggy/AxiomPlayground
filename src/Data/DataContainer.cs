@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AxiomPlayground.GameFlag;
 
 namespace AxiomPlayground.Data;
 
@@ -6,25 +7,26 @@ namespace AxiomPlayground.Data;
 /// Holds flattened JSON data for a single mod and resolves same-path conflicts.
 /// Also maintains a category index for manager-level access.
 /// </summary>
-public sealed class DataContainer
+public sealed class DataContainer(bool frameworkDebugEnabled)
 {
     private readonly Dictionary<string, object> _flatData = new(StringComparer.OrdinalIgnoreCase);
-
-    // NEW: category → set of flat paths
     private readonly Dictionary<string, HashSet<string>> _categoryIndex = new(StringComparer.OrdinalIgnoreCase);
-
-    public DataContainer() { }
+    private readonly bool _frameworkDebugEnabled = frameworkDebugEnabled;
+    private readonly Dictionary<string, List<PathEvent>> _pathHistory =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public void AddToFlatData(
+        string writerModId,
         JsonElement root,
         string? category = null,
         string? samePathConflict = null,
         object? samePathConflictArray = null)
     {
-        Flatten(root, "", category, _flatData, samePathConflict, samePathConflictArray);
+        Flatten(writerModId, root, "", category, _flatData, samePathConflict, samePathConflictArray);
     }
 
     private void Flatten(
+        string writerModId,
         JsonElement element,
         string currentPath,
         string? category,
@@ -39,19 +41,19 @@ public sealed class DataContainer
                 {
                     var nextPath = string.IsNullOrEmpty(currentPath) ? prop.Name : $"{currentPath}.{prop.Name}";
 
-                    Flatten(prop.Value, nextPath, category, output, samePathConflict, samePathConflictArray);
+                    Flatten(writerModId, prop.Value, nextPath, category, output, samePathConflict, samePathConflictArray);
                 }
                 break;
 
             case JsonValueKind.Array:
-                HandleLeaf(output, currentPath, ExtractArray(element),
+                HandleLeaf(output, writerModId, currentPath, ExtractArray(element),
                     category, samePathConflict, samePathConflictArray);
                 break;
 
             default:
                 var value = ExtractPrimitive(element);
                 if (value != null)
-                    HandleLeaf(output, currentPath, value,
+                    HandleLeaf(output, writerModId, currentPath, value,
                         category, samePathConflict, samePathConflictArray);
                 break;
         }
@@ -59,6 +61,7 @@ public sealed class DataContainer
 
     private void HandleLeaf(
         Dictionary<string, object> output,
+        string writerModId,
         string path,
         object value,
         string? category,
@@ -74,7 +77,8 @@ public sealed class DataContainer
         {
             output[path] = value;
             RegisterPath(path, category);
-            RemoveConflictingKeys(output, path);
+            RecordWrite(path, writerModId, existed: false);
+            RemoveConflictingKeys(writerModId, output, path);
             return;
         }
 
@@ -87,7 +91,8 @@ public sealed class DataContainer
             {
                 output[path] = value;
                 RegisterPath(path, category);
-                RemoveConflictingKeys(output, path);
+                RecordWrite(path, writerModId, existed: true);
+                RemoveConflictingKeys(writerModId, output, path);
                 return;
             }
 
@@ -98,8 +103,8 @@ public sealed class DataContainer
             int? index = SamePathConflictArrayToInt(samePathConflictArray);
             if (index is int i)
             {
-                var existingList = existingIsArray ? (List<object>)existing : new() { existing };
-                var incomingList = incomingIsArray ? (List<object>)value : new() { value };
+                var existingList = existingIsArray ? (List<object>)existing : [existing];
+                var incomingList = incomingIsArray ? (List<object>)value : [value];
 
                 if (i < 0 || i > existingList.Count)
                     i = existingList.Count;
@@ -107,7 +112,8 @@ public sealed class DataContainer
                 existingList.InsertRange(i, incomingList);
                 output[path] = existingList;
                 RegisterPath(path, category);
-                RemoveConflictingKeys(output, path);
+                RecordWrite(path, writerModId, existed: true);
+                RemoveConflictingKeys(writerModId, output, path);
             }
 
             return;
@@ -117,21 +123,24 @@ public sealed class DataContainer
         {
             output[path] = value;
             RegisterPath(path, category);
-            RemoveConflictingKeys(output, path);
+            RecordWrite(path, writerModId, existed: true);
+            RemoveConflictingKeys(writerModId, output, path);
         }
     }
 
-    private void RemoveConflictingKeys(Dictionary<string, object> output, string path)
+    private void RemoveConflictingKeys(
+        string deletingModId, Dictionary<string, object> output, string path)
     {
-        // Remove children
-        var keysToRemove = output.Keys
-            .Where(k => path.StartsWith(k + ".", StringComparison.OrdinalIgnoreCase))
+        // Remove children: any key that starts with path + "."
+        var childrenToRemove = output.Keys
+            .Where(k => k.StartsWith(path + ".", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        foreach (var k in keysToRemove)
+        foreach (var child in childrenToRemove)
         {
-            output.Remove(k);
-            UnregisterPath(k);
+            output.Remove(child);
+            UnregisterPath(child);
+            RecordDelete(child, deletingModId, path);
         }
 
         // Remove parents
@@ -144,7 +153,10 @@ public sealed class DataContainer
         {
             prefix = i == 0 ? segments[i] : prefix + "." + segments[i];
             if (output.Remove(prefix))
+            {
                 UnregisterPath(prefix);
+                RecordDelete(prefix, deletingModId, path);
+            }
         }
     }
 
@@ -228,6 +240,103 @@ public sealed class DataContainer
     {
         _categoryIndex.Remove(category);
     }
+
+    #region FrameworkGameFlag.Debug 
+    private enum PathEventType
+    {
+        Create,
+        Overwrite,
+        Delete
+    }
+
+    private sealed class PathEvent
+    {
+        public string ModId { get; init; } = default!;
+        public PathEventType Type { get; init; }
+        public string? CausedByPath { get; init; } // only for Delete
+    }
+
+    private List<PathEvent> GetOrCreateHistory(string path)
+    {
+        if (!_pathHistory.TryGetValue(path, out var list))
+        {
+            list = new List<PathEvent>();
+            _pathHistory[path] = list;
+        }
+
+        return list;
+    }
+
+    private void RecordWrite(string path, string modId, bool existed)
+    {
+        if (!_frameworkDebugEnabled)
+            return;
+
+        GetOrCreateHistory(path).Add(new PathEvent
+        {
+            ModId = modId,
+            Type = existed ? PathEventType.Overwrite : PathEventType.Create
+        });
+    }
+
+    private void RecordDelete(string deletedPath, string modId, string causedByPath)
+    {
+        if (!_frameworkDebugEnabled)
+            return;
+
+        GetOrCreateHistory(deletedPath).Add(new PathEvent
+        {
+            ModId = modId,
+            Type = PathEventType.Delete,
+            CausedByPath = causedByPath
+        });
+    }
+
+    public IReadOnlyList<(string ModId, string Event, string? CausedBy)> GetPathHistory(string path)
+    {
+        if (!_frameworkDebugEnabled)
+        {
+            Console.WriteLine
+            (
+                "[DataContainer] Framework debug mode is not enabled. " +
+                "Data history is not recorded. " +
+                "Start the game with the '-debug' argument to enable full data path history."
+            );
+            return [];
+        }
+
+        if (!_pathHistory.TryGetValue(path, out var list))
+        {
+            Console.WriteLine
+            (
+                $"[DataContainer] No history found for path '{path}'. " +
+                "The path has never been created or written by any mod."
+            );
+
+            return [];
+        }
+
+        return list
+            .Select(e => (e.ModId, e.Type.ToString(), e.CausedByPath))
+            .ToList();
+    }
+
+    public Dictionary<string, object> GetAllFlatData()
+    {
+        if (!_frameworkDebugEnabled)
+        {
+            Console.WriteLine
+            (
+                "[DataContainer] Framework debug mode is not enabled. " +
+                "Function GetAllFlatData is disabled. " +
+                "Start the game with the '-debug' argument to enable full data path history."
+            );
+            return [];
+        }
+        return _flatData;
+    }
+
+    #endregion
 
     // Debug
     public void PrintDebug()

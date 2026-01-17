@@ -1,5 +1,3 @@
-using System.Diagnostics.Contracts;
-using System.Net;
 using AxiomPlayground.Modding;
 
 namespace AxiomPlayground.Data;
@@ -18,7 +16,7 @@ public abstract class BaseManager(string categoryName)
     /// Automatically cleans up the category index after processing.
     /// </summary>
     /// <param name="mods">List of mods to load data from.</param>
-    public void LoadAll(List<ModInstance> mods)
+    public void LoadAll(List<Mod> mods)
     {
         if (mods == null || mods.Count == 0)
             throw new InvalidOperationException($"[{GetType().Name}] No mods provided for loading category '{CategoryName}'.");
@@ -36,7 +34,7 @@ public abstract class BaseManager(string categoryName)
     /// Process all data in this category for a single mod.
     /// </summary>
     /// <param name="mod">The mod to process.</param>
-    protected virtual void LoadForMod(ModInstance mod)
+    protected virtual void LoadForMod(Mod mod)
     {
         DataContainer? container = DataManager.Instance.TryGetContainer(mod.ModId);
         if (container == null) return;
