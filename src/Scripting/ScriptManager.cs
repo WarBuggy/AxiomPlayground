@@ -12,7 +12,6 @@ public sealed class ScriptManager
     public static ScriptManager Instance => _instance;
 
     private const string SCRIPT_FOLDER = "Scripts";
-    public static readonly string CURRENT_SCRIPT_PATH_KEY = "_CurrentScriptPath";
 
     private readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -40,7 +39,7 @@ public sealed class ScriptManager
         ];
     }
 
-    public List<ScriptQueueItem> LoadAll(List<ModInstance> mods)
+    public List<ScriptQueueItem> LoadAll(List<Mod> mods)
     {
         if (mods == null || mods.Count == 0)
             throw new InvalidOperationException("[ScriptManager] No mods provided.");
@@ -213,6 +212,7 @@ public sealed class ScriptManager
         LuaBindingRegistrar.RegisterAllBindings(_luaScript, _luaBindingTypes);
         new EventLuaBinding(_eventBus).Register(_luaScript);
 
+        _luaScript.Globals["ExecutingModId"] = (Func<string>)(() => _currentExecutingModId ?? "Unknown");
         foreach (var item in queue)
         {
             if (!item.Execute)
@@ -220,12 +220,9 @@ public sealed class ScriptManager
 
             var previousModId = _currentExecutingModId;
             _currentExecutingModId = item.ModId;
-
             try
             {
                 string code = File.ReadAllText(item.FullPath);
-
-                _luaScript.Globals[ScriptManager.CURRENT_SCRIPT_PATH_KEY] = item.RelativePath;
 
                 // Execute Lua code with chunk name = RelativePath
                 _luaScript.DoString(code, codeFriendlyName: item.RelativePath);
@@ -263,7 +260,41 @@ public sealed class ScriptManager
             foreach (var fn in kv.Value)
             {
                 try { fn.Call(args); }
-                catch (ScriptRuntimeException) { }
+                catch (ScriptRuntimeException ex)
+                {
+                    // Throw raw string exception with context
+                    throw new Exception(
+                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.Message}.", ex
+                    );
+                }
+            }
+
+            _currentExecutingModId = previous;
+        }
+    }
+
+    public void FireEventWithObject(string eventName, object classInstance)
+    {
+        // LuaEventBus is still used to store handlers
+        _eventBus.TryGetHandlers(eventName, out var handlers);
+        if (handlers == null)
+            return;
+
+        foreach (var kv in handlers)
+        {
+            var previous = _currentExecutingModId;
+            _currentExecutingModId = kv.Key;
+
+            foreach (var fn in kv.Value)
+            {
+                try { fn.Call(DynValue.FromObject(_luaScript, classInstance)); }
+                catch (ScriptRuntimeException ex)
+                {
+                    // Throw raw string exception with context
+                    throw new Exception(
+                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.Message}.", ex
+                    );
+                }
             }
 
             _currentExecutingModId = previous;
