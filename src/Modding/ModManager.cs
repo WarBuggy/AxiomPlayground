@@ -1,3 +1,5 @@
+using AxiomPlayground.GameFlag;
+
 namespace AxiomPlayground.Modding;
 
 public sealed class ModManager
@@ -145,9 +147,6 @@ public sealed class ModManager
         return result;
     }
 
-    /// <summary>
-    /// Given a list of mods, removes duplicates based on ModId, keeping only the last occurrence.
-    /// </summary>
     public void PopulateFinalLoadableMods(List<Mod> mods)
     {
         var finalMods = new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase);
@@ -184,4 +183,119 @@ public sealed class ModManager
         mod = found;
         return true;
     }
+
+    #region FrameworkGameFlag.Debug
+
+    public void ShowRuntimeHistory(string modId, string key)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (!TryGetMod(modId, out var mod))
+        {
+            Console.WriteLine(
+                $"[ModManager] Cannot show runtime history for key '{key}'. " +
+                $"No mod found with id '{modId}'.");
+            return;
+        }
+
+        var history = mod.GetRuntimeHistory(key);
+
+        if (history.Count == 0)
+        {
+            // GetRuntimeHistory already logs reason
+            return;
+        }
+
+        Console.WriteLine($"[ModManager] Runtime history for key '{key}' in mod '{modId}':");
+
+        PrintRuntimeHistoryList(history);
+    }
+
+    public void ShowAllRuntimeHistories(string modId)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (!TryGetMod(modId, out var mod))
+        {
+            Console.WriteLine(
+                $"[ModManager] Cannot show runtime histories. No mod found with id '{modId}'.");
+            return;
+        }
+
+        var allKeys = mod.GetAllRuntimeHistoryKeys();
+
+        if (allKeys.Count == 0)
+        {
+            Console.WriteLine($"[ModManager] No runtime keys exist for mod '{modId}'.");
+            return;
+        }
+
+        Console.WriteLine($"[ModManager] Runtime histories for mod '{modId}':");
+
+        foreach (var key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"- Key: {key}");
+
+            var history = mod.GetRuntimeHistory(key);
+            if (history.Count == 0)
+            {
+                Console.WriteLine("  (no history available)");
+                continue;
+            }
+
+            PrintRuntimeHistoryList(history);
+        }
+    }
+
+    public void ShowAllRuntimeHistoriesForAllMods()
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (FinalModList.Count == 0)
+        {
+            Console.WriteLine("[ModManager] No mods are loaded.");
+            return;
+        }
+
+        Console.WriteLine("[ModManager] Showing all runtime histories for all mods:");
+
+        foreach (var mod in FinalModList.OrderBy(m => m.ModId, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"\n=== Mod: {mod.ModId} ===");
+            ShowAllRuntimeHistories(mod.ModId);
+        }
+
+        Console.WriteLine("\n[ModManager] End of all runtime histories.");
+    }
+
+    private static void PrintRuntimeHistoryList(
+        IReadOnlyList<(string ModId, string Event, object? Value)> history)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        for (int i = 0; i < history.Count; i++)
+        {
+            var (modId, evt, value) = history[i];
+
+            string? valueInString = value != null ? value.ToString() : "<null>";
+            Console.WriteLine($"  {i + 1}. {evt} by {modId} (value = {valueInString})");
+        }
+    }
+
+    private static bool CheckAndWarnAboutFrameworkDebug()
+    {
+        if (GameFlagManager.IsSet(FrameworkGameFlag.Debug))
+            return true;
+
+        Console.WriteLine
+        (
+            "[ModManager] Framework debug mode is not enabled. " +
+            "All runtime history debug functions are disabled. " +
+            "Start the game with the '-debug' argument to enable runtime history tracking."
+        );
+        return false;
+    }
+
+    #endregion
+
 }

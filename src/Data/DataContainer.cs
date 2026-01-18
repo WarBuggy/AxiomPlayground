@@ -77,7 +77,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         {
             output[path] = value;
             RegisterPath(path, category);
-            RecordWrite(path, writerModId, existed: false);
+            RecordWrite(path, writerModId, existed: false, value);
             RemoveConflictingKeys(writerModId, output, path);
             return;
         }
@@ -91,7 +91,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
             {
                 output[path] = value;
                 RegisterPath(path, category);
-                RecordWrite(path, writerModId, existed: true);
+                RecordWrite(path, writerModId, existed: true, value);
                 RemoveConflictingKeys(writerModId, output, path);
                 return;
             }
@@ -112,7 +112,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
                 existingList.InsertRange(i, incomingList);
                 output[path] = existingList;
                 RegisterPath(path, category);
-                RecordWrite(path, writerModId, existed: true);
+                RecordWrite(path, writerModId, existed: true, existingList);
                 RemoveConflictingKeys(writerModId, output, path);
             }
 
@@ -123,7 +123,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         {
             output[path] = value;
             RegisterPath(path, category);
-            RecordWrite(path, writerModId, existed: true);
+            RecordWrite(path, writerModId, existed: true, value);
             RemoveConflictingKeys(writerModId, output, path);
         }
     }
@@ -138,9 +138,12 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
 
         foreach (var child in childrenToRemove)
         {
-            output.Remove(child);
-            UnregisterPath(child);
-            RecordDelete(child, deletingModId, path);
+            if (output.TryGetValue(child, out var childValue))
+            {
+                output.Remove(child);
+                UnregisterPath(child);
+                RecordDelete(child, deletingModId, path, childValue);
+            }
         }
 
         // Remove parents
@@ -152,10 +155,11 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         for (int i = 0; i < segments.Length - 1; i++)
         {
             prefix = i == 0 ? segments[i] : prefix + "." + segments[i];
-            if (output.Remove(prefix))
+            if (output.TryGetValue(prefix, out var parentValue))
             {
+                output.Remove(prefix);
                 UnregisterPath(prefix);
-                RecordDelete(prefix, deletingModId, path);
+                RecordDelete(prefix, deletingModId, path, parentValue);
             }
         }
     }
@@ -254,45 +258,46 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         public string ModId { get; init; } = default!;
         public PathEventType Type { get; init; }
         public string? CausedByPath { get; init; } // only for Delete
+        public object? Value { get; init; } // store the value at that moment
     }
 
     private List<PathEvent> GetOrCreateHistory(string path)
     {
         if (!_pathHistory.TryGetValue(path, out var list))
         {
-            list = new List<PathEvent>();
+            list = [];
             _pathHistory[path] = list;
         }
 
         return list;
     }
 
-    private void RecordWrite(string path, string modId, bool existed)
+    private void RecordWrite(string path, string modId, bool existed, object? value)
     {
-        if (!_frameworkDebugEnabled)
-            return;
+        if (!_frameworkDebugEnabled) return;
 
         GetOrCreateHistory(path).Add(new PathEvent
         {
             ModId = modId,
-            Type = existed ? PathEventType.Overwrite : PathEventType.Create
+            Type = existed ? PathEventType.Overwrite : PathEventType.Create,
+            Value = value
         });
     }
 
-    private void RecordDelete(string deletedPath, string modId, string causedByPath)
+    private void RecordDelete(string deletedPath, string modId, string causedByPath, object? value)
     {
-        if (!_frameworkDebugEnabled)
-            return;
+        if (!_frameworkDebugEnabled) return;
 
         GetOrCreateHistory(deletedPath).Add(new PathEvent
         {
             ModId = modId,
             Type = PathEventType.Delete,
-            CausedByPath = causedByPath
+            CausedByPath = causedByPath,
+            Value = value // value before deletion
         });
     }
 
-    public IReadOnlyList<(string ModId, string Event, string? CausedBy)> GetPathHistory(string path)
+    public IReadOnlyList<(string ModId, string Event, string? CausedBy, object? Value)> GetPathHistory(string path)
     {
         if (!_frameworkDebugEnabled)
         {
@@ -316,9 +321,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
             return [];
         }
 
-        return list
-            .Select(e => (e.ModId, e.Type.ToString(), e.CausedByPath))
-            .ToList();
+        return list.Select(e => (e.ModId, e.Type.ToString(), e.CausedByPath, e.Value)).ToList();
     }
 
     public Dictionary<string, object> GetAllFlatData()
@@ -337,33 +340,4 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
     }
 
     #endregion
-
-    // Debug
-    public void PrintDebug()
-    {
-        Console.WriteLine("---- Flattened Data ----");
-        foreach (var kv in _flatData.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"{kv.Key} = {FormatValue(kv.Value)}");
-        }
-
-        Console.WriteLine("---- Categories ----");
-        foreach (var cat in _categoryIndex)
-        {
-            Console.WriteLine($"{cat.Key}: [{string.Join(", ", cat.Value)}]");
-        }
-
-        Console.WriteLine("------------------------");
-    }
-
-    private static string FormatValue(object? value)
-    {
-        if (value == null)
-            return "null";
-
-        if (value is List<object?> list)
-            return "[" + string.Join(", ", list.ConvertAll(FormatValue)) + "]";
-
-        return value.ToString()!;
-    }
 }

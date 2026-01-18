@@ -7,6 +7,10 @@
     <RootNamespace>AxiomPlayground.Modding</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../GameFlag/GameFlag.csproj" />
+  </ItemGroup>
+
   <!-- Dev configuration -->
   <PropertyGroup Condition="'$(Configuration)'=='Dev'">
     <DefineConstants>DEV_ENV;TRACE</DefineConstants>

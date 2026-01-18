@@ -10,8 +10,9 @@ namespace AxiomPlayground.Scripting.LuaBindings
             ArgumentNullException.ThrowIfNull(luaScript);
 
             // Helper to get the currently executing mod
+            static string GetCurrentModId() => ScriptManager.Instance.CurrentExecutingModId;
             static Mod? GetCurrentMod() =>
-                ModManager.Instance.TryGetMod(ScriptManager.Instance.CurrentExecutingModId, out var mod)
+                ModManager.Instance.TryGetMod(GetCurrentModId(), out var mod)
                     ? mod
                     : null;
 
@@ -30,7 +31,9 @@ namespace AxiomPlayground.Scripting.LuaBindings
             modTable["SetRuntimeFor"] = (Action<string, string, DynValue>)((modId, key, value) =>
             {
                 if (!ModManager.Instance.TryGetMod(modId, out var mod)) return;
-                mod.SetRuntimeData(key, value);
+                var actingModId = GetCurrentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+                mod.SetRuntimeData(actingModId, key, value);
             });
 
             modTable["RuntimeFrom"] = (Func<string, string, DynValue>)((modId, key) =>
@@ -49,20 +52,24 @@ namespace AxiomPlayground.Scripting.LuaBindings
             modTable["RemoveRuntimeFrom"] = (Func<string, string, bool>)((modId, key) =>
             {
                 if (!ModManager.Instance.TryGetMod(modId, out var mod)) return false;
-                return mod.RemoveRuntimeData(key);
+                var actingModId = GetCurrentModId();
+                if (string.IsNullOrEmpty(actingModId)) return false;
+                return mod.RemoveRuntimeData(actingModId, key);
             });
 
             modTable["ClearRuntimeFor"] = (Action<string>)((modId) =>
             {
                 if (!ModManager.Instance.TryGetMod(modId, out var mod)) return;
-                mod.ClearRuntimeData();
+                var actingModId = GetCurrentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+                mod.ClearRuntimeData(actingModId);
             });
 
             modTable["SetRuntime"] = (Action<string, DynValue>)((key, value) =>
             {
                 var mod = GetCurrentMod();
                 if (mod == null) return;
-                mod.SetRuntimeData(key, value);
+                mod.SetRuntimeData(mod.ModId, key, value);
             });
 
             modTable["Runtime"] = (Func<string, DynValue>)((key) =>
@@ -84,15 +91,47 @@ namespace AxiomPlayground.Scripting.LuaBindings
             {
                 var mod = GetCurrentMod();
                 if (mod == null) return false;
-                return mod.RemoveRuntimeData(key);
+                return mod.RemoveRuntimeData(mod.ModId, key);
             });
 
             modTable["ClearRuntime"] = (Action)(() =>
             {
                 var mod = GetCurrentMod();
                 if (mod == null) return;
-                mod.ClearRuntimeData();
+                mod.ClearRuntimeData(mod.ModId);
             });
+
+            #region FrameworkGameFlag.Debug
+
+            modTable["RuntimeHistoryFor"] = (Action<string, string>)((modId, key) =>
+            {
+                ModManager.Instance.ShowRuntimeHistory(modId, key);
+            });
+
+            modTable["AllRuntimeHistoriesFor"] = (Action<string>)(modId =>
+            {
+                ModManager.Instance.ShowAllRuntimeHistories(modId);
+            });
+
+            modTable["RuntimeHistory"] = (Action<string>)(key =>
+            {
+                var actingModId = GetCurrentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+                ModManager.Instance.ShowRuntimeHistory(actingModId, key);
+            });
+
+            modTable["AllRuntimeHistories"] = (Action)(() =>
+            {
+                var actingModId = GetCurrentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+                ModManager.Instance.ShowAllRuntimeHistories(actingModId);
+            });
+
+            modTable["AllRuntimeHistoriesForAllMods"] = (Action)(() =>
+            {
+                ModManager.Instance.ShowAllRuntimeHistoriesForAllMods();
+            });
+            #endregion
 
             // Register table in Lua globals
             luaScript.Globals["Mods"] = modTable;

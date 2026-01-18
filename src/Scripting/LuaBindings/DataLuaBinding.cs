@@ -37,6 +37,41 @@ namespace AxiomPlayground.Scripting.LuaBindings
                 return GetCategoryTable(currentModId(), category);
             });
 
+            #region FrameworkGameFlag.Debug
+
+            gameDataTable["PathHistoryFor"] = (Action<string, string>)((modId, path) =>
+            {
+                DataManager.Instance.ShowPathHistory(modId, path);
+            });
+
+            gameDataTable["AllPathHistoriesFor"] = (Action<string>)(modId =>
+            {
+                DataManager.Instance.ShowAllPathHistories(modId);
+            });
+
+            gameDataTable["PathHistory"] = (Action<string>)(path =>
+            {
+                var actingModId = currentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+
+                DataManager.Instance.ShowPathHistory(actingModId, path);
+            });
+
+            gameDataTable["AllPathHistories"] = (Action)(() =>
+            {
+                var actingModId = currentModId();
+                if (string.IsNullOrEmpty(actingModId)) return;
+
+                DataManager.Instance.ShowAllPathHistories(actingModId);
+            });
+
+            gameDataTable["AllPathHistoriesForAllMods"] = (Action)(() =>
+            {
+                DataManager.Instance.ShowAllPathHistoriesForAllMods();
+            });
+
+            #endregion
+
             luaScript.Globals["GameData"] = gameDataTable;
 
             Table GetCategoryTable(string modId, string category)

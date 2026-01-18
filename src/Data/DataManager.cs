@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Windows.Markup;
 using AxiomPlayground.GameFlag;
 using AxiomPlayground.Modding;
 using MoonSharp.Interpreter.Compatibility;
@@ -167,7 +168,6 @@ public sealed class DataManager
 
     #region FrameworkGameFlag.Debug
 
-    // Shows the history of a single path for a given mod
     public void ShowPathHistory(string modId, string path)
     {
         if (!CheckAndWarnAboutFrameworkDebug()) return;
@@ -193,7 +193,6 @@ public sealed class DataManager
         PrintHistoryList(history);
     }
 
-    // Shows all paths and their history for a single mod
     public void ShowAllPathHistories(string modId)
     {
         if (!CheckAndWarnAboutFrameworkDebug()) return;
@@ -218,7 +217,6 @@ public sealed class DataManager
         foreach (var path in allPaths.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
         {
             Console.WriteLine($"- Path: {path}");
-            // Reuse ShowPathHistory logic by printing the history directly
             var history = container.GetPathHistory(path);
 
             if (history.Count == 0)
@@ -231,7 +229,6 @@ public sealed class DataManager
         }
     }
 
-    // Shows all paths and their histories for all mods
     public void ShowAllPathHistoriesForAllMods()
     {
         if (!CheckAndWarnAboutFrameworkDebug()) return;
@@ -253,23 +250,21 @@ public sealed class DataManager
         Console.WriteLine("\n[DataManager] End of all path histories.");
     }
 
-    // Helper to print a list of path history entries
-    private static void PrintHistoryList(IReadOnlyList<(string ModId, string Event, string? CausedBy)> history)
+    private static void PrintHistoryList(IReadOnlyList<(string ModId, string Event, string? CausedBy, object? Value)> history)
     {
         if (!CheckAndWarnAboutFrameworkDebug()) return;
 
         for (int i = 0; i < history.Count; i++)
         {
-            var (ModId, Event, CausedBy) = history[i];
+            var (modId, historyEvent, causedBy, value) = history[i];
 
-            if (CausedBy == null)
-            {
-                Console.WriteLine($"  {i + 1}. {Event} by {ModId}");
-            }
-            else
-            {
-                Console.WriteLine($"  {i + 1}. {Event} by {ModId} (caused by '{CausedBy}')");
-            }
+            string causeByInString = string.IsNullOrEmpty(causedBy) ? "<N/A>" : causedBy;
+            string causedByPart = $" (caused by '{causeByInString}')";
+
+            string? valueInString = value != null ? value.ToString() : "<null>";
+            string valuePart = $" | Value: {valueInString}";
+
+            Console.WriteLine($"  {i + 1}. {historyEvent} by {modId}{causedByPart}{valuePart}");
         }
     }
 
