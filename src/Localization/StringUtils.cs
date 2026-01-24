@@ -17,7 +17,7 @@ public static class StringUtils
 
         ending ??= "";
 
-        string message = LocalizationManager.Instance.GetFromMod(modId, key);
+        string message = LocalizationManager.Instance.GetFrom(modId, key);
         // Parse the message to detect how many arguments it expects
         var compositeFormat = CompositeFormat.Parse(message);
         var requiredArgs = compositeFormat.MinimumArgumentCount;

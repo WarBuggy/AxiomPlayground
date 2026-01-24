@@ -1,65 +1,44 @@
-using AxiomPlayground.Modding;
-
 namespace AxiomPlayground.Data;
 
-/// <summary>
-/// Base class for all managers that load data from DataManager by category.
-/// Handles iteration over all paths in a category and cleans up the category index automatically.
-/// </summary>
-public abstract class BaseManager(string categoryName)
+public abstract class BaseManager(string categoryName, bool requiredProcessedPaths = false, string? processedCategoryName = null)
 {
-    // Optional: category name if needed
+
     public string CategoryName { get; } = categoryName;
+    private static readonly string DEFAULT_PROCESSED_PREFIX = "Processed";
+    public readonly bool RequiredProcessedPaths = requiredProcessedPaths;
+    public string ProcessedCategoryName { get; } =
+        processedCategoryName ?? categoryName + DEFAULT_PROCESSED_PREFIX;
 
-    /// <summary>
-    /// Load all data for this manager from DataManager for the provided mods.
-    /// Automatically cleans up the category index after processing.
-    /// </summary>
-    /// <param name="mods">List of mods to load data from.</param>
-    public void LoadAll(List<Mod> mods)
+
+    public virtual Dictionary<string, Dictionary<string, object?>> ProcessPathData
+    (
+        IReadOnlyList<CategoryData> collectedCategoryDataList,
+        out Dictionary<string, Dictionary<string, PathHistory>> processedHistory
+    )
     {
-        if (mods == null || mods.Count == 0)
-            throw new InvalidOperationException($"[{GetType().Name}] No mods provided for loading category '{CategoryName}'.");
-
-        foreach (var mod in mods)
-        {
-            LoadForMod(mod);
-        }
-
-        // Cleanup after processing: remove the category index
-        DataManager.Instance.ClearCategoryIndex(CategoryName);
+        throw new NotImplementedException();
     }
 
-    /// <summary>
-    /// Process all data in this category for a single mod.
-    /// </summary>
-    /// <param name="mod">The mod to process.</param>
-    protected virtual void LoadForMod(Mod mod)
+    public string CreateFullPath(params string[] elements)
     {
-        DataContainer? container = DataManager.Instance.TryGetContainer(mod.ModId);
-        if (container == null) return;
+        string prefix = RequiredProcessedPaths ? ProcessedCategoryName : CategoryName;
+        if (elements == null || elements.Length == 0)
+            return prefix;
 
-        var pathsInCategory = container.GetPathsInCategory(CategoryName);
-        foreach (var path in pathsInCategory)
-        {
-            object? value = container.GetFlatData(path);
-            try
-            {
-                ProcessPath(mod.ModId, path, value);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{GetType().Name}] Error processing path '{path}' in mod '{mod.ModId}': {ex.Message}");
-            }
-        }
+        return prefix + "." + string.Join(".", elements);
     }
 
-    /// <summary>
-    /// Called for each path in the category.
-    /// Derived classes implement this to apply their custom logic for each path.
-    /// </summary>
-    /// <param name="modId">The mod ID this path belongs to.</param>
-    /// <param name="path">The flattened path string.</param>
-    /// <param name="value">The value at the path (may be null).</param>
-    protected abstract void ProcessPath(string modId, string path, object? value);
+    public static string[] PrependPath(string[] original, params string[] prefix)
+    {
+        if (prefix == null || prefix.Length == 0) return original;
+        if (original == null || original.Length == 0) return prefix;
+        return [.. prefix, .. original];
+    }
+
+    public static string[] AppendPath(string[] original, params string[] suffix)
+    {
+        if (original == null || original.Length == 0) return suffix ?? [];
+        if (suffix == null || suffix.Length == 0) return original;
+        return [.. original, .. suffix];
+    }
 }

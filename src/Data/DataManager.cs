@@ -1,8 +1,7 @@
+using System.Reflection;
 using System.Text.Json;
-using System.Windows.Markup;
 using AxiomPlayground.GameFlag;
 using AxiomPlayground.Modding;
-using MoonSharp.Interpreter.Compatibility;
 
 namespace AxiomPlayground.Data;
 
@@ -16,8 +15,54 @@ public sealed class DataManager
     private readonly HashSet<string> _registeredCategories = new(StringComparer.OrdinalIgnoreCase);
     private DataManager() { }
 
+    private static IReadOnlyList<BaseManager> DiscoverManagers()
+    {
+        var baseType = typeof(BaseManager);
+
+        return [.. AppDomain.CurrentDomain
+            .GetAssemblies()
+            .SelectMany(a =>
+            {
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException e)
+                {
+                    return e.Types.Where(t => t != null)!;
+                }
+            })
+            .Where(t => t != null && !t.IsAbstract && baseType.IsAssignableFrom(t))
+            .Select(t => GetManagerInstance(t!))  // force non-null Type
+            .Where(m => m != null)
+            .Cast<BaseManager>()];
+    }
+
+    private static BaseManager? GetManagerInstance(Type type)
+    {
+        var prop = type.GetProperty(
+            "Instance",
+            BindingFlags.Public | BindingFlags.Static);
+
+        if (prop == null)
+            return null;
+
+        if (!typeof(BaseManager).IsAssignableFrom(prop.PropertyType))
+            return null;
+
+        return prop.GetValue(null) as BaseManager;
+    }
+
     public void LoadAll(List<Mod> mods)
     {
+        var managers = DiscoverManagers();
+
+        foreach (var manager in managers)
+        {
+            if (manager.RequiredProcessedPaths)
+                RegisterCategories([manager.CategoryName]);
+        }
+
         if (mods == null || mods.Count == 0)
             throw new InvalidOperationException("[DataManager] No mods provided.");
 
@@ -26,6 +71,9 @@ public sealed class DataManager
 
         foreach (var mod in mods)
         {
+            // Give every mod a data container
+            _dataContainers[mod.ModId] = new DataContainer(frameworkDebugEnabled); ;
+
             string dataRoot = Path.Combine(ModManager.Instance.GetModFolderPath(mod), DATA_FOLDER);
 
             if (!Directory.Exists(dataRoot))
@@ -64,71 +112,168 @@ public sealed class DataManager
 
                 if (!_dataContainers.TryGetValue(targetModId, out var container))
                 {
-                    container = new DataContainer(frameworkDebugEnabled);
-                    _dataContainers[targetModId] = container;
+                    Console.WriteLine($"[DataManager] Target mod '{targetModId}' must be loaded before being used by mod '{mod.ModId}'. Please check the mod load order!");
+                    continue;
                 }
+
+                bool isOverwrite = file.SamePathConflict == "overwrite";
 
                 foreach (var kv in file.Data)
                 {
                     var key = kv.Key;
                     var value = kv.Value;
-
-                    string json = JsonSerializer.Serialize(value, _jsonOptions);
-                    var element = JsonDocument.Parse(json).RootElement;
-
-
-                    _registeredCategories.TryGetValue(key, out string? category);
-                    if (category != null)
+                    string? category = null;
+                    string keyFirstPart = key.Split(".")[0];
+                    if (_registeredCategories.Contains(keyFirstPart))
                     {
-                        // Category matched: strip the category prefix
-                        container.AddToFlatData(mod.ModId, element, category, file.SamePathConflict, file.SamePathConflictArray);
+                        category = keyFirstPart;
                     }
-                    else
-                    {
-                        // No category: keep full path
-                        var wrapped = JsonDocument.Parse(
-                            JsonSerializer.Serialize(new Dictionary<string, object> { { key, value } }, _jsonOptions)).RootElement;
-
-                        container.AddToFlatData(mod.ModId, wrapped, null, file.SamePathConflict, file.SamePathConflictArray);
-                    }
+                    var flattenedData = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    FlattenValue(kv.Value, kv.Key, flattenedData, mod.ModId, jsonFile);
+                    container.HandleFlatData(mod.ModId, flattenedData, isOverwrite, category);
                 }
             }
         }
 
-        Console.WriteLine(
-            $"[DataManager] Loaded data for {_dataContainers.Count} mods.");
+        Console.WriteLine($"[DataManager] Loaded data for {_dataContainers.Count} mods.");
+
+        // 3. Run processing pipeline
+        foreach (var manager in managers)
+        {
+            if (!manager.RequiredProcessedPaths)
+                continue;
+
+            IReadOnlyList<CategoryData> categoryData = CollectDataFromCategory(manager.CategoryName);
+            var processedData = manager.ProcessPathData(categoryData, out var processedHistory);
+            AddProcessedData(manager.ProcessedCategoryName, processedData, processedHistory);
+        }
     }
 
-    public object? GetData(string modId, string path)
+    private static void FlattenValue
+    (
+        object? value,
+        string currentPath,
+        Dictionary<string, object?> output,
+        string modId,
+        string file
+    )
     {
-        if (string.IsNullOrWhiteSpace(modId))
-            throw new ArgumentException("[DataManager] modId cannot be null or empty.");
-        if (string.IsNullOrWhiteSpace(path))
-            throw new ArgumentException("[DataManager] path cannot be null or empty.");
-
-        if (!_dataContainers.TryGetValue(modId, out var container))
-            throw new InvalidOperationException($"[DataManager] No data container found for mod '{modId}'.");
-
-        return container.GetFlatData(path);
-    }
-
-    public void SetData(string modId, string path, object? value)
-    {
-        if (string.IsNullOrWhiteSpace(modId))
-            throw new ArgumentException("[DataManager] modId cannot be null or empty.");
-        if (string.IsNullOrWhiteSpace(path))
-            throw new ArgumentException("[DataManager] path cannot be null or empty.");
-
-        if (!_dataContainers.TryGetValue(modId, out var container))
-            throw new InvalidOperationException($"[DataManager] No data container found for mod '{modId}'.");
-
         if (value == null)
         {
-            Console.WriteLine($"[DataManager] Ignored attempt to set null for '{path}' in mod '{modId}'. Value cannot be null.");
+            output[currentPath] = null;
             return;
         }
 
-        container.SetFlatData(path, value);
+        if (value is JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var prop in element.EnumerateObject())
+                    {
+                        FlattenValue
+                        (
+                            prop.Value,
+                            $"{currentPath}.{prop.Name}",
+                            output, modId, file
+                        );
+                    }
+                    return;
+
+                case JsonValueKind.Array:
+                    WarnArrayNotAllowed(modId, file, currentPath);
+                    return;
+
+                case JsonValueKind.String:
+                    output[currentPath] = element.GetString();
+                    return;
+
+                case JsonValueKind.Number:
+                    output[currentPath] = element.GetDouble();
+                    return;
+
+                case JsonValueKind.True:
+                    output[currentPath] = true;
+                    return;
+
+                case JsonValueKind.False:
+                    output[currentPath] = false;
+                    return;
+
+                case JsonValueKind.Null:
+                    output[currentPath] = null;
+                    return;
+
+                default:
+                    WarnInvalidValue(modId, file, currentPath);
+                    return;
+            }
+        }
+
+        if (value is Dictionary<string, object?> dict)
+        {
+            foreach (var kv in dict)
+            {
+                FlattenValue
+                (
+                    kv.Value,
+                    $"{currentPath}.{kv.Key}",
+                    output, modId, file
+                );
+            }
+            return;
+        }
+
+        if (value is IEnumerable<object>)
+        {
+            WarnArrayNotAllowed(modId, file, currentPath);
+            return;
+        }
+
+        // Primitive leaf
+        output[currentPath] = value;
+    }
+
+    private static void WarnArrayNotAllowed(string modId, string file, string path)
+    {
+        Console.WriteLine($"[DataManager] Warning: arrays are not allowed (mod '{modId}', file '{file}', path '{path}'). Skipping.");
+    }
+
+    private static void WarnInvalidValue(string modId, string file, string path)
+    {
+        Console.WriteLine($"[DataManager] Warning: invalid value (mod '{modId}', file '{file}', path '{path}'). Skipping.");
+    }
+
+    public bool TryGetData(string owningModId, string path, out object? value)
+    {
+        value = null;
+
+        if (string.IsNullOrWhiteSpace(owningModId))
+            throw new ArgumentException("[DataManager] owningModId cannot be null or empty.");
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("[DataManager] path cannot be null or empty.");
+
+        if (!_dataContainers.TryGetValue(owningModId, out var container))
+            throw new InvalidOperationException($"[DataManager] No data container found for mod '{owningModId}'.");
+
+        return container.TryGetFlatData(path, out value);
+    }
+
+    public void SetData(string owningModId, string path, object? value, string actingModId)
+    {
+        if (string.IsNullOrWhiteSpace(owningModId))
+            throw new ArgumentException("[DataManager] owningModId cannot be null or empty.");
+
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("[DataManager] path cannot be null or empty.");
+
+        if (string.IsNullOrWhiteSpace(actingModId))
+            throw new ArgumentException("[DataManager] actingModId cannot be null or empty.");
+
+        if (!_dataContainers.TryGetValue(owningModId, out var container))
+            throw new InvalidOperationException($"[DataManager] No data container found for mod '{owningModId}'.");
+
+        container.SetFlatData(owningModId, path, value, actingModId);
     }
 
     public void RegisterCategories(IEnumerable<string> categories)
@@ -137,6 +282,67 @@ public sealed class DataManager
             _registeredCategories.Add(category);
     }
 
+    public IReadOnlyList<CategoryData> CollectDataFromCategory(string category)
+    {
+        var result = new List<CategoryData>();
+
+        bool debugEnabled = GameFlagManager.IsSet(FrameworkGameFlag.Debug);
+
+        foreach (var kvp in _dataContainers)
+        {
+            string modId = kvp.Key;
+            var container = kvp.Value;
+
+            var paths = container.GetPathsInCategory(category);
+            if (paths.Count == 0)
+                continue;
+
+            var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            var history = debugEnabled
+                ? new Dictionary<string, PathHistory>(StringComparer.OrdinalIgnoreCase)
+                : [];
+
+            foreach (var path in paths)
+            {
+                if (!container.TryGetFlatData(path, out var value))
+                    continue;
+
+                values[path] = value!;
+
+                if (debugEnabled && container.TryGetPathHistory(path, out var pathHistory))
+                {
+                    history[path] = pathHistory!;
+                }
+            }
+
+            result.Add(new CategoryData(category, modId, values, history));
+        }
+
+        return result;
+    }
+
+    public void AddProcessedData
+    (
+        string processedCategoryName,
+        Dictionary<string, Dictionary<string, object?>> processedAnimationData,
+        Dictionary<string, Dictionary<string, PathHistory>> processedHistory
+    )
+    {
+        foreach (var item in processedAnimationData)
+        {
+            var modId = item.Key;
+            var data = item.Value;
+            if (!_dataContainers.TryGetValue(modId, out var container))
+                continue; // skip this mod
+
+            container.HandleFlatData(modId, data, false, processedCategoryName);
+
+            if (processedHistory.TryGetValue(modId, out var modHisotry))
+                container.AddProcessedHistory(modHisotry);
+        }
+    }
+
+    // TODO: remove this or make it private
     public DataContainer? TryGetContainer(string modId)
     {
         _dataContainers.TryGetValue(modId, out var container);
@@ -154,14 +360,8 @@ public sealed class DataManager
         // Target mod for this data file.
         // If null or missing, defaults to the current mod.
         public string? TargetMod { get; set; }
-
         // Conflict resolution (non-array-compatible cases)
         public string? SamePathConflict { get; set; }
-
-        // Conflict resolution (array-compatible cases)
-        // string ("ignore" | "overwrite") OR int (insert at index)
-        public object? SamePathConflictArray { get; set; }
-
         // Actual data payload (required)
         public Dictionary<string, object>? Data { get; set; }
     }
@@ -180,17 +380,7 @@ public sealed class DataManager
             return;
         }
 
-        var history = container.GetPathHistory(path);
-
-        if (history.Count == 0)
-        {
-            // GetPathHistory already logs reason (debug disabled or path never existed)
-            return;
-        }
-
-        Console.WriteLine($"[DataManager] Path history for '{path}' in mod '{modId}':");
-
-        PrintHistoryList(history);
+        container.PrintHistoryList(path);
     }
 
     public void ShowAllPathHistories(string modId)
@@ -204,29 +394,8 @@ public sealed class DataManager
             return;
         }
 
-        var allPaths = container.GetAllFlatData().Keys;
+        container.PrintAllHistoryList(modId);
 
-        if (allPaths.Count == 0)
-        {
-            Console.WriteLine($"[DataManager] No data paths exist for mod '{modId}'.");
-            return;
-        }
-
-        Console.WriteLine($"[DataManager] Path histories for mod '{modId}':");
-
-        foreach (var path in allPaths.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"- Path: {path}");
-            var history = container.GetPathHistory(path);
-
-            if (history.Count == 0)
-            {
-                Console.WriteLine("  (no history available)");
-                continue;
-            }
-
-            PrintHistoryList(history);
-        }
     }
 
     public void ShowAllPathHistoriesForAllMods()
@@ -243,29 +412,10 @@ public sealed class DataManager
 
         foreach (var modId in _dataContainers.Keys.OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
         {
-            Console.WriteLine($"\n=== Mod: {modId} ===");
             ShowAllPathHistories(modId); // reuse helper for per-mod printing
         }
 
         Console.WriteLine("\n[DataManager] End of all path histories.");
-    }
-
-    private static void PrintHistoryList(IReadOnlyList<(string ModId, string Event, string? CausedBy, object? Value)> history)
-    {
-        if (!CheckAndWarnAboutFrameworkDebug()) return;
-
-        for (int i = 0; i < history.Count; i++)
-        {
-            var (modId, historyEvent, causedBy, value) = history[i];
-
-            string causeByInString = string.IsNullOrEmpty(causedBy) ? "<N/A>" : causedBy;
-            string causedByPart = $" (caused by '{causeByInString}')";
-
-            string? valueInString = value != null ? value.ToString() : "<null>";
-            string valuePart = $" | Value: {valueInString}";
-
-            Console.WriteLine($"  {i + 1}. {historyEvent} by {modId}{causedByPart}{valuePart}");
-        }
     }
 
     private static bool CheckAndWarnAboutFrameworkDebug()

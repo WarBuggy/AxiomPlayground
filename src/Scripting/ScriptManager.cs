@@ -230,12 +230,20 @@ public sealed class ScriptManager
             catch (ScriptRuntimeException ex)
             {
                 // Lua runtime error with stack trace
-                Console.WriteLine($"[Lua Runtime Error] Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.DecoratedMessage}");
+                Console.WriteLine
+                (
+                    $"[ScriptManager] LUA runtime error from Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.DecoratedMessage}\n" +
+                    "[ScriptManager] LUA execution stops at the point of this error."
+                );
             }
             catch (Exception ex)
             {
                 // Other unexpected errors (file access, etc.)
-                Console.WriteLine($"[Execution Error] Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.Message}");
+                Console.WriteLine
+                (
+                    $"[ScriptManager] LUA runtime error from Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.Message}\n" +
+                    "[ScriptManager] LUA execution stops at the point of this error."
+                );
             }
             finally
             {
@@ -264,7 +272,7 @@ public sealed class ScriptManager
                 {
                     // Throw raw string exception with context
                     throw new Exception(
-                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.Message}.", ex
+                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}.", ex
                     );
                 }
             }
@@ -292,7 +300,7 @@ public sealed class ScriptManager
                 {
                     // Throw raw string exception with context
                     throw new Exception(
-                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.Message}.", ex
+                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}.", ex
                     );
                 }
             }

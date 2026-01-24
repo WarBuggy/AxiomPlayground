@@ -1,167 +1,87 @@
-using System.Text.Json;
-using AxiomPlayground.GameFlag;
-
 namespace AxiomPlayground.Data;
 
-/// <summary>
-/// Holds flattened JSON data for a single mod and resolves same-path conflicts.
-/// Also maintains a category index for manager-level access.
-/// </summary>
 public sealed class DataContainer(bool frameworkDebugEnabled)
 {
-    private readonly Dictionary<string, object> _flatData = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, HashSet<string>> _categoryIndex = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _flatData = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _frameworkDebugEnabled = frameworkDebugEnabled;
-    private readonly Dictionary<string, List<PathEvent>> _pathHistory =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PathHistory> _pathHistory = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _categoryIndex = new(StringComparer.OrdinalIgnoreCase);
 
-    public void AddToFlatData(
-        string writerModId,
-        JsonElement root,
-        string? category = null,
-        string? samePathConflict = null,
-        object? samePathConflictArray = null)
-    {
-        Flatten(writerModId, root, "", category, _flatData, samePathConflict, samePathConflictArray);
-    }
+    #region Functions for loading data from JSON files
 
-    private void Flatten(
+    public void HandleFlatData
+    (
         string writerModId,
-        JsonElement element,
-        string currentPath,
-        string? category,
-        Dictionary<string, object> output,
-        string? samePathConflict,
-        object? samePathConflictArray)
+        Dictionary<string, object?> flattenedData,
+        bool isOverwrite,
+        string? category = null
+    )
     {
-        switch (element.ValueKind)
+        foreach (var pv in flattenedData)
         {
-            case JsonValueKind.Object:
-                foreach (var prop in element.EnumerateObject())
-                {
-                    var nextPath = string.IsNullOrEmpty(currentPath) ? prop.Name : $"{currentPath}.{prop.Name}";
-
-                    Flatten(writerModId, prop.Value, nextPath, category, output, samePathConflict, samePathConflictArray);
-                }
-                break;
-
-            case JsonValueKind.Array:
-                HandleLeaf(output, writerModId, currentPath, ExtractArray(element),
-                    category, samePathConflict, samePathConflictArray);
-                break;
-
-            default:
-                var value = ExtractPrimitive(element);
-                if (value != null)
-                    HandleLeaf(output, writerModId, currentPath, value,
-                        category, samePathConflict, samePathConflictArray);
-                break;
+            var path = pv.Key;
+            var value = pv.Value;
+            TryAddToFlatData(writerModId, path, value, isOverwrite, category);
         }
     }
 
-    private void HandleLeaf(
-        Dictionary<string, object> output,
+    private void TryAddToFlatData
+    (
         string writerModId,
         string path,
-        object value,
-        string? category,
-        string? samePathConflict,
-        object? samePathConflictArray)
+        object? value,
+        bool isOverwrite,
+        string? category
+    )
     {
-        if (value == null)
-            return;
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Path cannot be null or empty.", nameof(path));
 
-        bool exists = output.TryGetValue(path, out var existing);
-
-        if (!exists)
+        bool hasChildren = _flatData.Keys.Any(k => k.StartsWith(path + ".", StringComparison.OrdinalIgnoreCase));
+        if (hasChildren)
         {
-            output[path] = value;
-            RegisterPath(path, category);
-            RecordWrite(path, writerModId, existed: false, value);
-            RemoveConflictingKeys(writerModId, output, path);
+            Console.WriteLine($"[DataContainer] Skipping '{path}' because children exist.");
             return;
         }
 
-        bool existingIsArray = existing is List<object>;
-        bool incomingIsArray = value is List<object>;
-
-        if (existingIsArray || incomingIsArray)
+        // Check for exact path
+        if (_flatData.ContainsKey(path))
         {
-            if (IsOverwrite(samePathConflictArray))
+            if (!isOverwrite)
             {
-                output[path] = value;
-                RegisterPath(path, category);
-                RecordWrite(path, writerModId, existed: true, value);
-                RemoveConflictingKeys(writerModId, output, path);
+                Console.WriteLine($"[DataContainer] Skipping '{path}' because exact path exists and overwrite not allowed.");
                 return;
             }
 
-            if (existing == null)
-                throw new InvalidOperationException(
-                    $"[DataContainer] Existing value of {path} is unexpectedly null.");
-
-            int? index = SamePathConflictArrayToInt(samePathConflictArray);
-            if (index is int i)
-            {
-                var existingList = existingIsArray ? (List<object>)existing : [existing];
-                var incomingList = incomingIsArray ? (List<object>)value : [value];
-
-                if (i < 0 || i > existingList.Count)
-                    i = existingList.Count;
-
-                existingList.InsertRange(i, incomingList);
-                output[path] = existingList;
-                RegisterPath(path, category);
-                RecordWrite(path, writerModId, existed: true, existingList);
-                RemoveConflictingKeys(writerModId, output, path);
-            }
-
-            return;
-        }
-
-        if (IsOverwrite(samePathConflict))
-        {
-            output[path] = value;
+            // Overwrite allowed
+            _flatData[path] = value;
             RegisterPath(path, category);
             RecordWrite(path, writerModId, existed: true, value);
-            RemoveConflictingKeys(writerModId, output, path);
-        }
-    }
-
-    private void RemoveConflictingKeys(
-        string deletingModId, Dictionary<string, object> output, string path)
-    {
-        // Remove children: any key that starts with path + "."
-        var childrenToRemove = output.Keys
-            .Where(k => k.StartsWith(path + ".", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        foreach (var child in childrenToRemove)
-        {
-            if (output.TryGetValue(child, out var childValue))
-            {
-                output.Remove(child);
-                UnregisterPath(child);
-                RecordDelete(child, deletingModId, path, childValue);
-            }
-        }
-
-        // Remove parents
-        var segments = path.Split('.');
-        if (segments.Length <= 1)
             return;
+        }
 
+        // No exact path and no children → safe to add
+        // Check parents for primitives
+        var segments = path.Split('.');
         string prefix = "";
         for (int i = 0; i < segments.Length - 1; i++)
         {
-            prefix = i == 0 ? segments[i] : prefix + "." + segments[i];
-            if (output.TryGetValue(prefix, out var parentValue))
+            prefix = i == 0 ? segments[0] : prefix + "." + segments[i];
+
+            if (_flatData.TryGetValue(prefix, out var parentValue))
             {
-                output.Remove(prefix);
+                // Delete the primitive parent to ensure all paths are leaf nodes
+                _flatData.Remove(prefix);
                 UnregisterPath(prefix);
-                RecordDelete(prefix, deletingModId, path, parentValue);
+                RecordDelete(prefix, writerModId, parentValue, [path]);
+                Console.WriteLine($"[DataContainer] Deleted parent primitive '{prefix}' to insert '{path}'.");
+                break; // Only one deletion should be needed
             }
         }
+
+        _flatData[path] = value;
+        RegisterPath(path, category);
+        RecordWrite(path, writerModId, existed: false, value);
     }
 
     private void RegisterPath(string path, string? category)
@@ -191,53 +111,9 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
             : Array.Empty<string>();
     }
 
-    private static List<object?> ExtractArray(JsonElement element)
+    public bool TryGetFlatData(string path, out object? value)
     {
-        var list = new List<object?>();
-        foreach (var item in element.EnumerateArray())
-            list.Add(ExtractPrimitive(item));
-        return list;
-    }
-
-    private static object? ExtractPrimitive(JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.GetDouble(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Null => null,
-            JsonValueKind.Object => element,
-            _ => element.ToString()
-        };
-    }
-
-    private static bool IsOverwrite(object? option)
-    {
-        if (option is JsonElement e && e.ValueKind == JsonValueKind.String)
-            return e.GetString()!.Equals("overwrite", StringComparison.OrdinalIgnoreCase);
-
-        return false;
-    }
-
-    private static int? SamePathConflictArrayToInt(object? samePathConflictArray)
-    {
-        if (samePathConflictArray is JsonElement e && e.ValueKind == JsonValueKind.Number)
-            return (int)e.GetDouble();
-
-        return null;
-    }
-
-    public object? GetFlatData(string path)
-    {
-        _flatData.TryGetValue(path, out var value);
-        return value;
-    }
-
-    public void SetFlatData(string path, object value)
-    {
-        _flatData[path] = value;
+        return _flatData.TryGetValue(path, out value);
     }
 
     public void ClearCategoryIndex(string category)
@@ -245,98 +121,136 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         _categoryIndex.Remove(category);
     }
 
-    #region FrameworkGameFlag.Debug 
-    private enum PathEventType
-    {
-        Create,
-        Overwrite,
-        Delete
-    }
+    #endregion
 
-    private sealed class PathEvent
-    {
-        public string ModId { get; init; } = default!;
-        public PathEventType Type { get; init; }
-        public string? CausedByPath { get; init; } // only for Delete
-        public object? Value { get; init; } // store the value at that moment
-    }
+    #region Functions for manipulate path values during runtime
 
-    private List<PathEvent> GetOrCreateHistory(string path)
+    public void SetFlatData(string owningModId, string path, object? value, string actingModId)
     {
-        if (!_pathHistory.TryGetValue(path, out var list))
+        if (!_flatData.ContainsKey(path))
         {
-            list = [];
-            _pathHistory[path] = list;
+            throw new InvalidOperationException
+            (
+                $"[DataContainer] Cannot set '{path}' for owning mod '{owningModId}' at runtime because the path does not exist. " +
+                "All paths must be created in JSON data files before runtime."
+            );
         }
 
-        return list;
+        _flatData[path] = value!;
+
+        RecordWrite(path, actingModId, existed: true, value);
+    }
+
+    #endregion
+
+    #region FrameworkGameFlag.Debug 
+
+    private PathHistory GetOrCreateHistory(string path)
+    {
+        if (!_pathHistory.TryGetValue(path, out var history))
+        {
+            history = new();
+            _pathHistory[path] = history;
+        }
+
+        return history;
     }
 
     private void RecordWrite(string path, string modId, bool existed, object? value)
     {
         if (!_frameworkDebugEnabled) return;
 
-        GetOrCreateHistory(path).Add(new PathEvent
-        {
-            ModId = modId,
-            Type = existed ? PathEventType.Overwrite : PathEventType.Create,
-            Value = value
-        });
+        var history = GetOrCreateHistory(path);
+        if (existed)
+            history.AddOverwrite(modId, value);
+        else
+            history.AddCreate(modId, value);
     }
 
-    private void RecordDelete(string deletedPath, string modId, string causedByPath, object? value)
+    private void RecordDelete(string deletedPath, string modId, object? value, List<string> causedByPath)
     {
         if (!_frameworkDebugEnabled) return;
 
-        GetOrCreateHistory(deletedPath).Add(new PathEvent
-        {
-            ModId = modId,
-            Type = PathEventType.Delete,
-            CausedByPath = causedByPath,
-            Value = value // value before deletion
-        });
+        GetOrCreateHistory(deletedPath).AddDeleted(modId, value, causedByPath);
     }
 
-    public IReadOnlyList<(string ModId, string Event, string? CausedBy, object? Value)> GetPathHistory(string path)
+    public bool TryGetPathHistory(string path, out PathHistory? history)
     {
         if (!_frameworkDebugEnabled)
         {
-            Console.WriteLine
-            (
-                "[DataContainer] Framework debug mode is not enabled. " +
-                "Data history is not recorded. " +
-                "Start the game with the '-debug' argument to enable full data path history."
-            );
-            return [];
+            history = null!;
+            Console.WriteLine("[DataContainer] Framework debug mode is not enabled. History is not recorded.");
+            return false;
         }
 
-        if (!_pathHistory.TryGetValue(path, out var list))
+        if (_pathHistory.TryGetValue(path, out var original))
+        {
+            history = new PathHistory(original);
+            return true;
+        }
+
+        history = null;
+        return false;
+    }
+
+    public void AddProcessedHistory(IReadOnlyDictionary<string, PathHistory> processedHistory)
+    {
+        if (!_frameworkDebugEnabled)
+        {
+            Console.WriteLine("[DataContainer] Framework debug mode is not enabled. Processed history is ignored.");
+            return;
+        }
+
+        foreach (var (icomingPath, incomingHistory) in processedHistory)
+        {
+            _pathHistory[icomingPath] = incomingHistory;
+        }
+    }
+
+    public void PrintHistoryList(string path)
+    {
+        if (!_frameworkDebugEnabled)
+        {
+            Console.WriteLine("[DataContainer] Framework debug mode is not enabled. History is not recorded.");
+            return;
+        }
+
+        if (!_pathHistory.TryGetValue(path, out var history))
         {
             Console.WriteLine
             (
                 $"[DataContainer] No history found for path '{path}'. " +
                 "The path has never been created or written by any mod."
             );
-
-            return [];
+            return;
         }
 
-        return list.Select(e => (e.ModId, e.Type.ToString(), e.CausedByPath, e.Value)).ToList();
+        history.Print(path);
     }
 
-    public Dictionary<string, object> GetAllFlatData()
+    public void PrintAllHistoryList(string modId)
     {
         if (!_frameworkDebugEnabled)
         {
-            Console.WriteLine
-            (
-                "[DataContainer] Framework debug mode is not enabled. " +
-                "Function GetAllFlatData is disabled. " +
-                "Start the game with the '-debug' argument to enable full data path history."
-            );
-            return [];
+            Console.WriteLine("[DataContainer] Framework debug mode is not enabled. History is not recorded.");
+            return;
         }
-        return _flatData;
+
+        if (_pathHistory.Count == 0)
+        {
+            Console.WriteLine("[DataContainer] No paths with history to print.");
+            return;
+        }
+
+        Console.WriteLine($"[DataContainer] Printing history for all paths of mod '{modId}':");
+
+        foreach (var kvp in _pathHistory.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var path = kvp.Key;
+            var history = kvp.Value;
+            history.Print(path);
+            Console.WriteLine(); // extra line between paths for readability
+        }
     }
 
     #endregion

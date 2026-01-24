@@ -45,7 +45,7 @@ public abstract class LocalizedError<TException> : Exception where TException : 
         string message = $"[{className}] {StringUtils.LocalizeWithEndingFrom(_modId, ending, key, args)}";
 
         Exception? innerException = null;
-        var ctor = typeof(TException).GetConstructor(new[] { typeof(string), typeof(Exception) })
+        var ctor = typeof(TException).GetConstructor([typeof(string), typeof(Exception)])
                    ?? throw new InvalidOperationException(
                         $"[LocalizedError] Exception type {typeof(TException).Name} must define a constructor (string, Exception)."
                    );
