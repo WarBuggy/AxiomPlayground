@@ -281,32 +281,12 @@ public sealed class ScriptManager
         }
     }
 
-    public void FireEventWithObject(string eventName, object classInstance)
+    public DynValue[] BuildEventArgs(IEnumerable<object?> args)
     {
-        // LuaEventBus is still used to store handlers
-        _eventBus.TryGetHandlers(eventName, out var handlers);
-        if (handlers == null)
-            return;
-
-        foreach (var kv in handlers)
-        {
-            var previous = _currentExecutingModId;
-            _currentExecutingModId = kv.Key;
-
-            foreach (var fn in kv.Value)
-            {
-                try { fn.Call(DynValue.FromObject(_luaScript, classInstance)); }
-                catch (ScriptRuntimeException ex)
-                {
-                    // Throw raw string exception with context
-                    throw new Exception(
-                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}.", ex
-                    );
-                }
-            }
-
-            _currentExecutingModId = previous;
-        }
+        return [.. args
+            .Select(a => a == null
+                ? DynValue.Nil
+                : DynValue.FromObject(_luaScript, a))];
     }
 
     public sealed class ScriptQueueItem

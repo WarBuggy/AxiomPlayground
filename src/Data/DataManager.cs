@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using AxiomPlayground.GameFlag;
 using AxiomPlayground.Modding;
@@ -15,48 +14,8 @@ public sealed class DataManager
     private readonly HashSet<string> _registeredCategories = new(StringComparer.OrdinalIgnoreCase);
     private DataManager() { }
 
-    private static IReadOnlyList<BaseManager> DiscoverManagers()
+    public void LoadAll(List<Mod> mods, IReadOnlyList<BaseManager> managers)
     {
-        var baseType = typeof(BaseManager);
-
-        return [.. AppDomain.CurrentDomain
-            .GetAssemblies()
-            .SelectMany(a =>
-            {
-                try
-                {
-                    return a.GetTypes();
-                }
-                catch (ReflectionTypeLoadException e)
-                {
-                    return e.Types.Where(t => t != null)!;
-                }
-            })
-            .Where(t => t != null && !t.IsAbstract && baseType.IsAssignableFrom(t))
-            .Select(t => GetManagerInstance(t!))  // force non-null Type
-            .Where(m => m != null)
-            .Cast<BaseManager>()];
-    }
-
-    private static BaseManager? GetManagerInstance(Type type)
-    {
-        var prop = type.GetProperty(
-            "Instance",
-            BindingFlags.Public | BindingFlags.Static);
-
-        if (prop == null)
-            return null;
-
-        if (!typeof(BaseManager).IsAssignableFrom(prop.PropertyType))
-            return null;
-
-        return prop.GetValue(null) as BaseManager;
-    }
-
-    public void LoadAll(List<Mod> mods)
-    {
-        var managers = DiscoverManagers();
-
         foreach (var manager in managers)
         {
             if (manager.RequiredProcessedPaths)
@@ -137,7 +96,7 @@ public sealed class DataManager
 
         Console.WriteLine($"[DataManager] Loaded data for {_dataContainers.Count} mods.");
 
-        // 3. Run processing pipeline
+        // Process path if required
         foreach (var manager in managers)
         {
             if (!manager.RequiredProcessedPaths)

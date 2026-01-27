@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace AxiomPlayground.Data;
 
 public abstract class BaseManager(string categoryName, bool requiredProcessedPaths = false, string? processedCategoryName = null)
@@ -9,14 +11,19 @@ public abstract class BaseManager(string categoryName, bool requiredProcessedPat
     public string ProcessedCategoryName { get; } =
         processedCategoryName ?? categoryName + DEFAULT_PROCESSED_PREFIX;
 
-
     public virtual Dictionary<string, Dictionary<string, object?>> ProcessPathData
     (
         IReadOnlyList<CategoryData> collectedCategoryDataList,
         out Dictionary<string, Dictionary<string, PathHistory>> processedHistory
     )
     {
-        throw new NotImplementedException();
+        processedHistory = [];
+        return [];
+    }
+
+    public virtual IEnumerable<LoadEventDispatch> CollectLoadEvents()
+    {
+        yield break;
     }
 
     public string CreateFullPath(params string[] elements)
@@ -41,4 +48,49 @@ public abstract class BaseManager(string categoryName, bool requiredProcessedPat
         if (suffix == null || suffix.Length == 0) return original;
         return [.. original, .. suffix];
     }
+
+    public static IReadOnlyList<BaseManager> DiscoverManagers()
+    {
+        var baseType = typeof(BaseManager);
+
+        return [.. AppDomain.CurrentDomain
+            .GetAssemblies()
+            .SelectMany(a =>
+            {
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException e)
+                {
+                    return e.Types.Where(t => t != null)!;
+                }
+            })
+            .Where(t => t != null && !t.IsAbstract && baseType.IsAssignableFrom(t))
+            .Select(t => GetManagerInstance(t!))
+            .Where(m => m != null)
+            .Cast<BaseManager>()];
+    }
+
+    private static BaseManager? GetManagerInstance(Type type)
+    {
+        var prop = type.GetProperty(
+            "Instance",
+            BindingFlags.Public | BindingFlags.Static);
+
+        if (prop == null)
+            return null;
+
+        if (!typeof(BaseManager).IsAssignableFrom(prop.PropertyType))
+            return null;
+
+        return prop.GetValue(null) as BaseManager;
+    }
 }
+
+public readonly record struct LoadEventDispatch
+(
+    string EventName,
+    string ModId,
+    IReadOnlyList<object?> Args
+);
