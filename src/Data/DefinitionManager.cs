@@ -1,5 +1,3 @@
-using MoonSharp.Interpreter;
-
 namespace AxiomPlayground.Data;
 
 public class DefinitionManager : BaseManager
@@ -8,6 +6,7 @@ public class DefinitionManager : BaseManager
     public static DefinitionManager Instance => _instance;
     private readonly Dictionary<string, HashSet<string>> _modDefinitions = [];
     private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _definitionTypes = [];
+    private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _defPathsCache = [];
 
     private DefinitionManager() : base("definition", true, "definition") { }
 
@@ -26,6 +25,8 @@ public class DefinitionManager : BaseManager
                 _modDefinitions[modId] = [];
             if (!_definitionTypes.ContainsKey(modId))
                 _definitionTypes[modId] = [];
+            if (!_defPathsCache.ContainsKey(modId))
+                _defPathsCache[modId] = [];
 
             foreach (var pathAndValue in definitions)
             {
@@ -37,25 +38,41 @@ public class DefinitionManager : BaseManager
 
                 string defName = pathParts[1];
 
-                if (_modDefinitions[modId].Contains(defName))
-                    continue;
-
-                _modDefinitions[modId].Add(defName);
-
-                string typePath = $"definition.{defName}.Type";
-                if (!definitions.TryGetValue(typePath, out var typeValue))
-                    continue;
-
-                string? typeStr = typeValue as string;
-                if (string.IsNullOrEmpty(typeStr))
-                    continue;
-
-                if (!_definitionTypes[modId].TryGetValue(typeStr, out var defList))
+                // If this def is new, register it
+                bool isNewDef = !_modDefinitions[modId].Contains(defName);
+                if (isNewDef)
                 {
-                    defList = [];
-                    _definitionTypes[modId][typeStr] = defList;
+                    _modDefinitions[modId].Add(defName);
+
+                    // Handle Type
+                    string typePath = $"{CategoryName}.{defName}.type";
+                    if (definitions.TryGetValue(typePath, out var typeValue))
+                    {
+                        string? typeStr = typeValue as string;
+                        if (!string.IsNullOrEmpty(typeStr))
+                        {
+                            if (!_definitionTypes[modId].TryGetValue(typeStr, out var defList))
+                            {
+                                defList = [];
+                                _definitionTypes[modId][typeStr] = defList;
+                            }
+                            defList.Add(defName);
+                        }
+                    }
+
+                    // Initialize path cache for this def
+                    if (!_defPathsCache[modId].ContainsKey(defName))
+                        _defPathsCache[modId][defName] = [];
                 }
-                defList.Add(defName);
+
+                // Add the current path to the def's path cache
+                string prefix = $"{CategoryName}.{defName}.payload.";
+                if (path.StartsWith(prefix))
+                {
+                    string relativePath = path[prefix.Length..];
+                    if (!string.IsNullOrEmpty(relativePath))
+                        _defPathsCache[modId][defName].Add(relativePath);
+                }
             }
         }
 
@@ -94,7 +111,7 @@ public class DefinitionManager : BaseManager
         }
     }
 
-    public bool TryGet(string modId, string defName, string propertyName, out object? value)
+    public bool TryGetPayload(string modId, string defName, string propertyName, out object? value)
     {
         value = null;
 
@@ -102,7 +119,7 @@ public class DefinitionManager : BaseManager
             return false;
 
         // Build full path
-        string fullPath = CreateFullPath([defName, "Data", propertyName]);
+        string fullPath = CreateFullPath([defName, "payload", propertyName]);
 
         if (DataManager.Instance.TryGetData(modId, fullPath, out value))
         {
@@ -114,26 +131,15 @@ public class DefinitionManager : BaseManager
 
     public bool TryGetType(string modId, string defName, out string? type)
     {
-        type = null;
+        string fullPath = CreateFullPath([defName, "type"]);
 
-        // Check if the mod has definitions
-        if (!_modDefinitions.TryGetValue(modId, out var defNames) || !defNames.Contains(defName))
-            return false;
-
-        // Look for the type mapping
-        if (_definitionTypes.TryGetValue(modId, out var typeDict))
+        if (DataManager.Instance.TryGetData(modId, fullPath, out var typeValue))
         {
-            foreach (var kv in typeDict)
-            {
-                if (kv.Value.Contains(defName))
-                {
-                    type = kv.Key;
-                    return true;
-                }
-            }
+            type = typeValue as string;
+            return true;
         }
-
-        return false; // definition exists but has no type
+        type = null;
+        return false;
     }
 
     public List<string> GetDefinitionsByType(string modId, string type)
@@ -162,13 +168,25 @@ public class DefinitionManager : BaseManager
         return _modDefinitions.TryGetValue(modId, out var defNames) && defNames.Contains(defName);
     }
 
-    public void Set(string modId, string defName, string propertyName, object? value, string actingModId)
+    public void SetPayload(string modId, string defName, string propertyName, object? value, string actingModId)
     {
         if (!_modDefinitions.TryGetValue(modId, out var defNames) || !defNames.Contains(defName))
             throw new InvalidOperationException($"[DefinitionManager] Definition '{defName}' does not exist for mod '{modId}'.");
 
-        string fullPath = CreateFullPath(new[] { defName, "Data", propertyName });
+        string fullPath = CreateFullPath([defName, "payload", propertyName]);
 
         DataManager.Instance.SetData(modId, fullPath, value, actingModId);
+    }
+
+    public List<string> GetPayloadPaths(string modId, string defName, string? rootKey = null)
+    {
+        if (!_defPathsCache.TryGetValue(modId, out var modCache) || !modCache.TryGetValue(defName, out var paths))
+            return []; // empty list if mod/def not found
+
+        if (string.IsNullOrEmpty(rootKey))
+            return [.. paths]; // return all paths as list
+
+        // Filter paths by rootKey prefix (e.g., "Payload.list")
+        return [.. paths.Where(p => p.StartsWith(rootKey + "."))];
     }
 }

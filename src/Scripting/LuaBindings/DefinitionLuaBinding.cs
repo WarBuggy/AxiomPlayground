@@ -15,13 +15,13 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
 
         // Own mod 
 
-        definitionTable["TryGet"] = (Func<string, string, DynValue>)((defName, propertyName) =>
+        definitionTable["TryGetPayload"] = (Func<string, string, DynValue>)((defName, propertyName) =>
         {
             var modId = currentModId();
             if (string.IsNullOrWhiteSpace(modId))
                 return DynValue.NewTuple(DynValue.Nil, DynValue.False);
 
-            bool exists = DefinitionManager.Instance.TryGet(modId, defName, propertyName, out object? value);
+            bool exists = DefinitionManager.Instance.TryGetPayload(modId, defName, propertyName, out object? value);
 
             return DynValue.NewTuple(
                 value != null ? DynValue.FromObject(luaScript, value) : DynValue.Nil,
@@ -29,13 +29,13 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
             );
         });
 
-        definitionTable["Set"] = (Action<string, string, object?>)((defName, propertyName, value) =>
+        definitionTable["SetPayload"] = (Action<string, string, object?>)((defName, propertyName, value) =>
         {
             var modId = currentModId();
             if (string.IsNullOrWhiteSpace(modId))
                 return;
 
-            DefinitionManager.Instance.Set(modId, defName, propertyName, value, modId);
+            DefinitionManager.Instance.SetPayload(modId, defName, propertyName, value, modId);
         });
 
         definitionTable["TryGetType"] = (Func<string, DynValue>)((defName) =>
@@ -91,15 +91,31 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
             return table;
         });
 
+        definitionTable["PayloadPaths"] = (Func<string, string?, Table>)((defName, rootKey) =>
+            {
+                string modId = currentModId();
+                if (string.IsNullOrWhiteSpace(modId))
+                    return new Table(luaScript);
+
+                var paths = DefinitionManager.Instance.GetPayloadPaths(modId, defName, rootKey);
+                var tbl = new Table(luaScript);
+                int index = 1;
+                foreach (var path in paths)
+                {
+                    tbl[index++] = DynValue.NewString(path);
+                }
+                return tbl;
+            });
+
         // Cross-mod 
 
-        definitionTable["TryGetFrom"] = (Func<string, string, string, DynValue>)((modId, defName, propertyName) =>
+        definitionTable["TryGetPayloadFrom"] = (Func<string, string, string, DynValue>)((modId, defName, propertyName) =>
         {
             if (string.IsNullOrWhiteSpace(modId))
                 return DynValue.NewTuple(DynValue.Nil, DynValue.False);
 
             object? value;
-            bool exists = DefinitionManager.Instance.TryGet(modId, defName, propertyName, out value);
+            bool exists = DefinitionManager.Instance.TryGetPayload(modId, defName, propertyName, out value);
 
             return DynValue.NewTuple(
                 value != null ? DynValue.FromObject(luaScript, value) : DynValue.Nil,
@@ -128,14 +144,30 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
             return DefinitionManager.Instance.Exists(modId, defName);
         });
 
-        definitionTable["SetTo"] = (Action<string, string, string, object?>)((modId, defName, propertyName, value) =>
+        definitionTable["SetPayloadTo"] = (Action<string, string, string, object?>)((modId, defName, propertyName, value) =>
         {
             var actingModId = currentModId();
             if (string.IsNullOrWhiteSpace(actingModId))
                 return;
 
-            DefinitionManager.Instance.Set(modId, defName, propertyName, value, actingModId);
+            DefinitionManager.Instance.SetPayload(modId, defName, propertyName, value, actingModId);
         });
+
+        definitionTable["PayloadPathsFrom"] = (Func<string, string, string?, Table>)((modId, defName, rootKey) =>
+           {
+               if (string.IsNullOrWhiteSpace(modId))
+                   return new Table(luaScript);
+
+               var paths = DefinitionManager.Instance.GetPayloadPaths(modId, defName, rootKey);
+               var tbl = new Table(luaScript);
+               int index = 1;
+               foreach (var path in paths)
+               {
+                   tbl[index++] = DynValue.NewString(path);
+               }
+               return tbl;
+           });
+
 
         luaScript.Globals["Definition"] = definitionTable;
     }
