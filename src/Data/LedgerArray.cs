@@ -3,24 +3,28 @@ using AxiomPlayground.GameFlag;
 
 namespace AxiomPlayground.Data
 {
-    public sealed class LedgerArray<T>
+    public sealed class LedgerArray
     {
         private int _nextItemId = 1;
         private int _nextEventId = 1;
-        private readonly List<ArrayEvent> _ledger = [];
-        private readonly List<ArrayItem> _items = [];
-        private readonly Dictionary<int, int> _indexByItemId = [];
-        public IEnumerable<T> Values => _items.Select(i => i.Value);
-        public IReadOnlyList<ArrayEvent> Ledger =>
-            _ledger.AsReadOnly();
+        private readonly List<ArrayEvent> _ledger = new();
+        private readonly List<ArrayItem> _items = new();
+        private readonly Dictionary<int, int> _indexByItemId = new();
+
+        public IEnumerable<object> Values => _items.Select(i => i.Value);
+
+        public IReadOnlyList<ArrayEvent> Ledger => _ledger.AsReadOnly();
+
         public IReadOnlyList<ItemOwnership> CurrentOwnership =>
             new ReadOnlyCollection<ItemOwnership>(
-                [.. _items.Select(i => new ItemOwnership(i.ItemId, i.OwnerId))]
+                _items.Select(i => new ItemOwnership(i.ItemId, i.OwnerId)).ToList()
             );
+
         private readonly bool _trackingEnabled = GameFlagManager.IsSet(FrameworkGameFlag.Debug);
+
         public int Count => _items.Count;
 
-        public int InsertAt(int index, T value, string actorId)
+        public int InsertAt(int index, object value, string actorId)
         {
             ValidateActor(actorId);
 
@@ -62,8 +66,6 @@ namespace AxiomPlayground.Data
             return true;
         }
 
-        // Clear is terminal for all active items.
-        // Ownership and values remain inspectable only via ledger replay.
         public void Clear(string actorId)
         {
             ValidateActor(actorId);
@@ -79,11 +81,11 @@ namespace AxiomPlayground.Data
             AppendAndApply(evt);
         }
 
-        public bool TryGetAt(int index, out T value)
+        public bool TryGetAt(int index, out object value)
         {
             if (index < 0 || index >= _items.Count)
             {
-                value = default!;
+                value = null!;
                 return false;
             }
 
@@ -91,62 +93,46 @@ namespace AxiomPlayground.Data
             return true;
         }
 
-        public bool TryGetAt(int index, out T value, out string ownerId)
+        public bool TryGetAt(int index, out object value, out string ownerId)
         {
-            // Use the existing TryGetAt for the value
             if (!TryGetAt(index, out value))
             {
                 ownerId = string.Empty;
                 return false;
             }
 
-            // If value exists, fetch the owner from _items
             ownerId = _items[index].OwnerId;
             return true;
         }
 
-        public int InsertFirst(T value, string actorId)
-        {
-            return InsertAt(0, value, actorId);
-        }
+        public int InsertFirst(object value, string actorId) => InsertAt(0, value, actorId);
 
-        public int InsertLast(T value, string actorId)
-        {
-            return InsertAt(_items.Count, value, actorId);
-        }
+        public int InsertLast(object value, string actorId) => InsertAt(_items.Count, value, actorId);
 
-        public bool TryInsertBefore(int existingItemId, T value, string actorId, out int newItemId)
+        public bool TryInsertBefore(int existingItemId, object value, string actorId, out int newItemId)
         {
             newItemId = default;
-
-            // Find the index of the item with the given ItemId
             if (!_indexByItemId.TryGetValue(existingItemId, out var index))
                 return false;
 
-            // Insert at that index
             newItemId = InsertAt(index, value, actorId);
             return true;
         }
 
-        public bool TryInsertAfter(int existingItemId, T value, string actorId, out int newItemId)
+        public bool TryInsertAfter(int existingItemId, object value, string actorId, out int newItemId)
         {
             newItemId = default;
-
-            // Find the index of the item with the given ItemId
             if (!_indexByItemId.TryGetValue(existingItemId, out var index))
                 return false;
 
-            // Insert after that index
             newItemId = InsertAt(index + 1, value, actorId);
             return true;
         }
 
-        public bool TryInsertBeforeValue(T existingValue, T newValue, string actorId, out int newItemId)
+        public bool TryInsertBeforeValue(object existingValue, object newValue, string actorId, out int newItemId)
         {
             newItemId = default;
-
-            // Find the index of the first item with matching value
-            var index = _items.FindIndex(i => EqualityComparer<T>.Default.Equals(i.Value, existingValue));
+            var index = _items.FindIndex(i => Equals(i.Value, existingValue));
             if (index == -1)
                 return false;
 
@@ -154,12 +140,10 @@ namespace AxiomPlayground.Data
             return true;
         }
 
-        public bool TryInsertAfterValue(T existingValue, T newValue, string actorId, out int newItemId)
+        public bool TryInsertAfterValue(object existingValue, object newValue, string actorId, out int newItemId)
         {
             newItemId = default;
-
-            // Find the index of the first item with matching value
-            var index = _items.FindIndex(i => EqualityComparer<T>.Default.Equals(i.Value, existingValue));
+            var index = _items.FindIndex(i => Equals(i.Value, existingValue));
             if (index == -1)
                 return false;
 
@@ -167,12 +151,9 @@ namespace AxiomPlayground.Data
             return true;
         }
 
-        public int IndexOf(T value)
-        {
-            return _items.FindIndex(i => EqualityComparer<T>.Default.Equals(i.Value, value));
-        }
+        public int IndexOf(object value) => _items.FindIndex(i => Equals(i.Value, value));
 
-        public void SetValueAt(int index, T newValue, string actorId)
+        public void SetValueAt(int index, object newValue, string actorId)
         {
             ValidateActor(actorId);
 
@@ -193,10 +174,7 @@ namespace AxiomPlayground.Data
 
         private void AppendAndApply(ArrayEvent evt)
         {
-            // Always apply to live _items
             Apply(evt);
-
-            // Only append to ledger if tracking is enabled
             if (_trackingEnabled)
             {
                 _ledger.Add(evt);
@@ -207,46 +185,25 @@ namespace AxiomPlayground.Data
         {
             switch (evt)
             {
-                case InsertEvent insert:
-                    ApplyInsert(insert);
-                    break;
-
-                case RemoveEvent remove:
-                    ApplyRemove(remove);
-                    break;
-
-                case ClearEvent:
-                    ApplyClear();
-                    break;
-
-                case UpdateEvent update:
-                    ApplyUpdate(update);
-                    break;
-
+                case InsertEvent insert: ApplyInsert(insert); break;
+                case RemoveEvent remove: ApplyRemove(remove); break;
+                case ClearEvent: ApplyClear(); break;
+                case UpdateEvent update: ApplyUpdate(update); break;
                 default:
-                    throw new InvalidOperationException(
-                        $"[LedgerArray] Unknown event type {evt.GetType().Name}"
-                    );
+                    throw new InvalidOperationException($"[LedgerArray] Unknown event type {evt.GetType().Name}");
             }
         }
 
         private void ApplyInsert(InsertEvent evt)
         {
-            _items.Insert(evt.Index, new ArrayItem(
-                ItemId: evt.ItemId,
-                OwnerId: evt.ActorId,
-                Value: evt.Value
-            ));
-
+            _items.Insert(evt.Index, new ArrayItem(evt.ItemId, evt.ActorId, evt.Value));
             RebuildIndex();
         }
 
         private void ApplyRemove(RemoveEvent evt)
         {
             if (!_indexByItemId.TryGetValue(evt.ItemId, out var index))
-                throw new InvalidOperationException(
-                    $"[LedgerArray] Attempted to remove unknown ItemId {evt.ItemId}"
-                );
+                throw new InvalidOperationException($"[LedgerArray] Attempted to remove unknown ItemId {evt.ItemId}");
 
             _items.RemoveAt(index);
             _indexByItemId.Remove(evt.ItemId);
@@ -262,9 +219,7 @@ namespace AxiomPlayground.Data
         private void ApplyUpdate(UpdateEvent evt)
         {
             if (!_indexByItemId.TryGetValue(evt.ItemId, out var index))
-                throw new InvalidOperationException(
-                    $"[LedgerArray] Attempted to update unknown ItemId {evt.ItemId}"
-                );
+                throw new InvalidOperationException($"[LedgerArray] Attempted to update unknown ItemId {evt.ItemId}");
 
             _items[index] = _items[index] with { Value = evt.NewValue };
         }
@@ -272,7 +227,6 @@ namespace AxiomPlayground.Data
         private void RebuildIndex()
         {
             _indexByItemId.Clear();
-
             for (int i = 0; i < _items.Count; i++)
             {
                 _indexByItemId[_items[i].ItemId] = i;
@@ -285,47 +239,22 @@ namespace AxiomPlayground.Data
                 throw new ArgumentException("[LedgerArray] actorId must be non-empty", nameof(actorId));
         }
 
-        private sealed record ArrayItem(
-            int ItemId,
-            string OwnerId,
-            T Value
-        );
+        private sealed record ArrayItem(int ItemId, string OwnerId, object Value);
 
-        public readonly record struct ItemOwnership(
-            int ItemId,
-            string OwnerId
-        );
+        public readonly record struct ItemOwnership(int ItemId, string OwnerId);
 
-        public abstract record ArrayEvent(
-            int EventId,
-            string ActorId
-        );
+        public abstract record ArrayEvent(int EventId, string ActorId);
 
-        public sealed record InsertEvent(
-            int EventId,
-            string ActorId,
-            int ItemId,
-            int Index,
-            T Value
-        ) : ArrayEvent(EventId, ActorId);
+        public sealed record InsertEvent(int EventId, string ActorId, int ItemId, int Index, object Value)
+            : ArrayEvent(EventId, ActorId);
 
-        public sealed record RemoveEvent(
-            int EventId,
-            string ActorId,
-            int ItemId
-        ) : ArrayEvent(EventId, ActorId);
+        public sealed record RemoveEvent(int EventId, string ActorId, int ItemId)
+            : ArrayEvent(EventId, ActorId);
 
-        public sealed record ClearEvent(
-            int EventId,
-            string ActorId
-        ) : ArrayEvent(EventId, ActorId);
+        public sealed record ClearEvent(int EventId, string ActorId)
+            : ArrayEvent(EventId, ActorId);
 
-        public sealed record UpdateEvent(
-            int EventId,
-            string ActorId,
-            int ItemId,
-            T OldValue,
-            T NewValue
-        ) : ArrayEvent(EventId, ActorId);
+        public sealed record UpdateEvent(int EventId, string ActorId, int ItemId, object OldValue, object NewValue)
+            : ArrayEvent(EventId, ActorId);
     }
 }
