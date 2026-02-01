@@ -122,6 +122,48 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
         // Count
         ledgerArrayTable["Count"] = (Func<LedgerArray, int>)(ledger => ledger.Count);
 
+        // Iterators 
+        ledgerArrayTable["Iterator"] = (Func<LedgerArray, DynValue>)(ledger =>
+        {
+            int index = 0;
+            int count = ledger.Count;
+
+            // Return a DynValue representing a function (Lua callable)
+            return DynValue.NewCallback((ctx, args) =>
+            {
+                index++;
+                if (index > count) return DynValue.Nil;
+
+                if (ledger.TryGetAt(index - 1, out object value))
+                    return DynValue.FromObject(luaScript, value);
+
+                return DynValue.Nil;
+            });
+        });
+
+        // Iterator over values + owner
+        ledgerArrayTable["IteratorWithOwner"] = (Func<LedgerArray, DynValue>)(ledger =>
+        {
+            int index = 0;
+            int count = ledger.Count;
+
+            return DynValue.NewCallback((ctx, args) =>
+            {
+                index++;
+                if (index > count) return DynValue.Nil;
+
+                if (ledger.TryGetAt(index - 1, out object value, out string owner))
+                {
+                    var tbl = new Table(luaScript);
+                    tbl["Value"] = DynValue.FromObject(luaScript, value);
+                    tbl["Owner"] = owner;
+                    return DynValue.NewTable(tbl);
+                }
+
+                return DynValue.Nil;
+            });
+        });
+
         luaScript.Globals["LedgerArray"] = ledgerArrayTable;
     }
 }
