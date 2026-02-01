@@ -301,6 +301,37 @@ public sealed class DataManager
         }
     }
 
+    public bool TryCreateData(string owningModId, string path, object? value, string actingModId, out string? error)
+    {
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(owningModId))
+        {
+            error = "[DataManager] owningModId cannot be null or empty.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            error = "[DataManager] path cannot be null or empty.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(actingModId))
+        {
+            error = "[DataManager] actingModId cannot be null or empty.";
+            return false;
+        }
+
+        if (!_dataContainers.TryGetValue(owningModId, out var container))
+        {
+            error = $"[DataManager] No data container found for mod '{owningModId}'.";
+            return false;
+        }
+
+        return container.TryCreateFlatData(owningModId, path, value, actingModId, out error);
+    }
+
     // TODO: remove this or make it private
     public DataContainer? TryGetContainer(string modId)
     {

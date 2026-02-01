@@ -141,6 +141,51 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         RecordWrite(path, actingModId, existed: true, value);
     }
 
+    public bool TryCreateFlatData(string owningModId, string path, object? value, string actingModId, out string? error)
+    {
+        error = null;
+
+        // Path must not already exist
+        if (_flatData.ContainsKey(path))
+        {
+            error = $"Cannot create '{path}' for owning mod '{owningModId}' because the path already exists.";
+            return false;
+        }
+
+        // Reject if children already exist
+        if (_flatData.Keys.Any(k => k.StartsWith(path + ".", StringComparison.OrdinalIgnoreCase)))
+        {
+            error = $"Cannot create '{path}' because child paths already exist.";
+            return false;
+        }
+
+        // Reject if any parent exists
+        var segments = path.Split('.');
+        string prefix = "";
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            prefix = i == 0 ? segments[0] : prefix + "." + segments[i];
+
+            if (_flatData.ContainsKey(prefix))
+            {
+                error = $"Cannot create '{path}' because parent path '{prefix}' already exists.";
+                return false;
+            }
+        }
+
+        // Create the new path
+        _flatData[path] = value;
+        RecordWrite(path, actingModId, existed: false, value);
+
+        // Auto-detect category from first segment (no new category allowed here)
+        string firstSegment = segments[0];
+        if (_categoryIndex.ContainsKey(firstSegment))
+            RegisterPath(path, firstSegment);
+
+        return true;
+    }
+
+
     #endregion
 
     #region FrameworkGameFlag.Debug 

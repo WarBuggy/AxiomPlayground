@@ -50,6 +50,32 @@ namespace AxiomPlayground.Scripting.LuaBindings
             gameDataTable["SetTo"] = (Action<string, string, object?>)((modId, path, value) =>
                  DataManager.Instance.SetData(modId, path, value, currentModId()));
 
+
+            gameDataTable["TryCreate"] = (Func<string, object?, DynValue>)((path, value) =>
+            {
+                var owningModId = currentModId();
+                var actingModId = owningModId;
+                if (string.IsNullOrEmpty(owningModId))
+                    return DynValue.NewTuple(DynValue.NewBoolean(false), DynValue.NewString("Current mod ID is null or empty"));
+
+                if (DataManager.Instance.TryCreateData(owningModId, path, value, actingModId, out var error))
+                    return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+
+                return DynValue.NewTuple(DynValue.NewBoolean(false), DynValue.NewString(error ?? "<unknown error>"));
+            });
+
+            gameDataTable["TryCreateFor"] = (Func<string, string, object?, DynValue>)((owningModId, path, value) =>
+            {
+                var actingModId = currentModId();
+                if (string.IsNullOrWhiteSpace(actingModId))
+                    return DynValue.NewTuple(DynValue.NewBoolean(false), DynValue.NewString("Acting mod ID is null or empty"));
+
+                if (DataManager.Instance.TryCreateData(owningModId, path, value, actingModId, out var error))
+                    return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+
+                return DynValue.NewTuple(DynValue.NewBoolean(false), DynValue.NewString(error ?? "<unknown error>"));
+            });
+
             #region FrameworkGameFlag.Debug
 
             gameDataTable["PathHistoryFor"] = (Action<string, string>)((modId, path) =>
