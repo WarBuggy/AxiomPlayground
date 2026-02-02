@@ -28,10 +28,13 @@ public sealed class DataManager
         var validModIds = mods.Select(m => m.ModId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var frameworkDebugEnabled = GameFlagManager.IsSet(FrameworkGameFlag.Debug);
 
+        SetModListData(mods, frameworkDebugEnabled);
+
         foreach (var mod in mods)
         {
             // Give every mod a data container
-            _dataContainers[mod.ModId] = new DataContainer(frameworkDebugEnabled); ;
+            if (mod.ModId != "Core") // skip Core because already exists
+                _dataContainers[mod.ModId] = new DataContainer(frameworkDebugEnabled);
 
             string dataRoot = Path.Combine(ModManager.Instance.GetModFolderPath(mod), DATA_FOLDER);
 
@@ -354,6 +357,22 @@ public sealed class DataManager
         public string? SamePathConflict { get; set; }
         // Actual data payload (required)
         public Dictionary<string, object>? Data { get; set; }
+    }
+
+    private void SetModListData(List<Mod> mods, bool frameworkDebugEnabled)
+    {
+        var coreDataContainer = new DataContainer(frameworkDebugEnabled);
+        var modLedger = new LedgerArray();
+        foreach (var mod in mods)
+        {
+            modLedger.InsertLast(mod.ModId, "Core");
+        }
+        if (coreDataContainer.TryCreateFlatData("Core", "mods.list", modLedger, "Core", out var error))
+        {
+            _dataContainers["Core"] = coreDataContainer;
+            return;
+        }
+        throw new Exception($"[DataManager] Failed to create path data of all mod list. Error: {error}");
     }
 
     #region FrameworkGameFlag.Debug
