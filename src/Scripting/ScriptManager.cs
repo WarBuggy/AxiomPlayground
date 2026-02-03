@@ -289,6 +289,11 @@ public sealed class ScriptManager
                 : DynValue.FromObject(_luaScript, a))];
     }
 
+    public Table CreateATable()
+    {
+        return new Table(_luaScript);
+    }
+
     public sealed class ScriptQueueItem
     {
         public required string ModId { get; set; }
