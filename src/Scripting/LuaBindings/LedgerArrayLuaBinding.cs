@@ -20,10 +20,10 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
         ledgerArrayTable["Create"] = (Func<LedgerArray>)(() => new LedgerArray());
 
         // Insert operations (Lua index is 1-based)
-        ledgerArrayTable["InsertAt"] = (Func<LedgerArray, int, object, int>)((ledger, luaIndex, value) =>
+        ledgerArrayTable["Insert"] = (Func<LedgerArray, int, object, int>)((ledger, luaIndex, value) =>
         {
             var actorId = currentModId();
-            return ledger.InsertAt(luaIndex - 1, value, actorId); // adjust to 0-based
+            return ledger.InsertAt(luaIndex, value, actorId);
         });
 
         ledgerArrayTable["InsertFirst"] = (Func<LedgerArray, object, int>)((ledger, value) =>
@@ -38,44 +38,28 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
             return ledger.InsertLast(value, actorId);
         });
 
-        // TryInsertBefore/After
-        ledgerArrayTable["TryInsertBefore"] = (Func<LedgerArray, int, object, DynValue>)((ledger, existingItemId, value) =>
-        {
-            var actorId = currentModId();
-            if (ledger.TryInsertBefore(existingItemId, value, actorId, out int newItemId))
-                return DynValue.NewNumber(newItemId);
-            return DynValue.Nil;
-        });
-
-        ledgerArrayTable["TryInsertAfter"] = (Func<LedgerArray, int, object, DynValue>)((ledger, existingItemId, value) =>
-        {
-            var actorId = currentModId();
-            if (ledger.TryInsertAfter(existingItemId, value, actorId, out int newItemId))
-                return DynValue.NewNumber(newItemId);
-            return DynValue.Nil;
-        });
-
+        // TryInsertBeforeValue / TryInsertAfterValue
         ledgerArrayTable["TryInsertBeforeValue"] = (Func<LedgerArray, object, object, DynValue>)((ledger, existingValue, newValue) =>
         {
             var actorId = currentModId();
-            if (ledger.TryInsertBeforeValue(existingValue, newValue, actorId, out int newItemId))
-                return DynValue.NewNumber(newItemId);
+            if (ledger.TryInsertBeforeValue(existingValue, newValue, actorId, out int newIndex))
+                return DynValue.NewNumber(newIndex);
             return DynValue.Nil;
         });
 
         ledgerArrayTable["TryInsertAfterValue"] = (Func<LedgerArray, object, object, DynValue>)((ledger, existingValue, newValue) =>
         {
             var actorId = currentModId();
-            if (ledger.TryInsertAfterValue(existingValue, newValue, actorId, out int newItemId))
-                return DynValue.NewNumber(newItemId);
+            if (ledger.TryInsertAfterValue(existingValue, newValue, actorId, out int newIndex))
+                return DynValue.NewNumber(newIndex);
             return DynValue.Nil;
         });
 
-        // Remove (Lua index is 1-based)
-        ledgerArrayTable["TryRemoveAt"] = (Func<LedgerArray, int, bool>)((ledger, luaIndex) =>
+        // Remove
+        ledgerArrayTable["TryRemove"] = (Func<LedgerArray, int, bool>)((ledger, luaIndex) =>
         {
             var actorId = currentModId();
-            return ledger.TryRemoveAt(luaIndex - 1, actorId);
+            return ledger.TryRemove(luaIndex, actorId);
         });
 
         // Clear
@@ -86,16 +70,16 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
         });
 
         // Getters
-        ledgerArrayTable["TryGetAt"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
+        ledgerArrayTable["TryGet"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
         {
-            if (ledger.TryGetAt(luaIndex - 1, out object value))
+            if (ledger.TryGet(luaIndex, out object value))
                 return DynValue.FromObject(luaScript, value);
             return DynValue.Nil;
         });
 
-        ledgerArrayTable["TryGetAtWithOwner"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
+        ledgerArrayTable["TryGetWithOwner"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
         {
-            if (ledger.TryGetAt(luaIndex - 1, out object value, out string ownerId))
+            if (ledger.TryGet(luaIndex, out object? value, out string ownerId))
             {
                 var tbl = new Table(luaScript);
                 tbl["Value"] = DynValue.FromObject(luaScript, value);
@@ -108,51 +92,46 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
         // IndexOf (Lua-friendly 1-based)
         ledgerArrayTable["IndexOf"] = (Func<LedgerArray, object, int>)((ledger, value) =>
         {
-            int idx = ledger.IndexOf(value);
-            return idx >= 0 ? idx + 1 : 0; // 0 = not found
+            int idx = ledger.GetIndexOf(value);
+            return idx >= 0 ? idx : 0; // 0 = not found in Lua
         });
 
-        // Update value
-        ledgerArrayTable["SetValueAt"] = (Action<LedgerArray, int, object>)((ledger, luaIndex, newValue) =>
+        // Set value
+        ledgerArrayTable["Set"] = (Action<LedgerArray, int, object>)((ledger, luaIndex, newValue) =>
         {
             var actorId = currentModId();
-            ledger.SetValueAt(luaIndex - 1, newValue, actorId);
+            ledger.Set(luaIndex, newValue, actorId);
         });
 
         // Count
         ledgerArrayTable["Count"] = (Func<LedgerArray, int>)(ledger => ledger.Count);
 
-        // Iterators 
+        // Iterators over values
         ledgerArrayTable["Iterator"] = (Func<LedgerArray, DynValue>)(ledger =>
         {
-            int index = 0;
-            int count = ledger.Count;
-
-            // Return a DynValue representing a function (Lua callable)
+            var keys = ledger.Keys.ToList();
+            int idx = 0;
             return DynValue.NewCallback((ctx, args) =>
             {
-                index++;
-                if (index > count) return DynValue.Nil;
+                if (idx >= keys.Count) return DynValue.Nil;
 
-                if (ledger.TryGetAt(index - 1, out object value))
-                    return DynValue.FromObject(luaScript, value);
-
-                return DynValue.Nil;
+                string key = keys[idx++];
+                ledger.TryGet(key, out var value);
+                return DynValue.FromObject(luaScript, value);
             });
         });
 
-        // Iterator over values + owner
+        // Iterators over values + owner
         ledgerArrayTable["IteratorWithOwner"] = (Func<LedgerArray, DynValue>)(ledger =>
         {
-            int index = 0;
-            int count = ledger.Count;
-
+            var keys = ledger.Keys.ToList();
+            int idx = 0;
             return DynValue.NewCallback((ctx, args) =>
             {
-                index++;
-                if (index > count) return DynValue.Nil;
+                if (idx >= keys.Count) return DynValue.Nil;
 
-                if (ledger.TryGetAt(index - 1, out object value, out string owner))
+                string key = keys[idx++];
+                if (ledger.TryGet(key, out var value, out var owner))
                 {
                     var tbl = new Table(luaScript);
                     tbl["Value"] = DynValue.FromObject(luaScript, value);
