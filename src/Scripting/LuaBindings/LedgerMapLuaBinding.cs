@@ -30,9 +30,14 @@ public sealed class LedgerMapLuaBinding : LuaBindingBase
         ledgerMapTable["TryGet"] = (Func<LedgerMap, string, DynValue>)((ledger, key) =>
         {
             if (ledger.TryGet(key, out object? value))
-                return DynValue.FromObject(luaScript, value);
+            {
+                return DynValue.NewTuple(
+                    DynValue.FromObject(luaScript, value),
+                    DynValue.True
+                );
+            }
 
-            return DynValue.Nil;
+            return DynValue.NewTuple(DynValue.Nil, DynValue.False);
         });
 
         // TryGet value with owner
@@ -40,12 +45,18 @@ public sealed class LedgerMapLuaBinding : LuaBindingBase
         {
             if (ledger.TryGet(key, out object? value, out string owner))
             {
-                var tbl = new Table(luaScript);
-                tbl["Value"] = DynValue.FromObject(luaScript, value);
-                tbl["Owner"] = owner;
-                return DynValue.NewTable(tbl);
+                return DynValue.NewTuple(
+                    DynValue.FromObject(luaScript, value),
+                    DynValue.NewString(owner),
+                    DynValue.True
+                );
             }
-            return DynValue.Nil;
+
+            return DynValue.NewTuple(
+                DynValue.Nil,
+                DynValue.Nil,
+                DynValue.False
+            );
         });
 
         // Remove a key

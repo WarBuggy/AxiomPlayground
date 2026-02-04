@@ -73,20 +73,32 @@ public sealed class LedgerArrayLuaBinding : LuaBindingBase
         ledgerArrayTable["TryGet"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
         {
             if (ledger.TryGet(luaIndex, out object value))
-                return DynValue.FromObject(luaScript, value);
-            return DynValue.Nil;
+            {
+                return DynValue.NewTuple(
+                    DynValue.FromObject(luaScript, value),
+                    DynValue.True
+                );
+            }
+
+            return DynValue.NewTuple(DynValue.Nil, DynValue.False);
         });
 
         ledgerArrayTable["TryGetWithOwner"] = (Func<LedgerArray, int, DynValue>)((ledger, luaIndex) =>
         {
             if (ledger.TryGet(luaIndex, out object? value, out string ownerId))
             {
-                var tbl = new Table(luaScript);
-                tbl["Value"] = DynValue.FromObject(luaScript, value);
-                tbl["Owner"] = ownerId;
-                return DynValue.NewTable(tbl);
+                return DynValue.NewTuple(
+                    DynValue.FromObject(luaScript, value),
+                    DynValue.NewString(ownerId),
+                    DynValue.True
+                );
             }
-            return DynValue.Nil;
+
+            return DynValue.NewTuple(
+                DynValue.Nil,
+                DynValue.Nil,
+                DynValue.False
+            );
         });
 
         // IndexOf (Lua-friendly 1-based)
