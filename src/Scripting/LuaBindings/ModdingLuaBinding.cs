@@ -20,6 +20,11 @@ namespace AxiomPlayground.Scripting.LuaBindings
             }
             modTable["Ids"] = (Func<Table>)(() => modIds);
 
+            modTable["Current"] = (Func<string>)(() =>
+            {
+                return ScriptManager.Instance.CurrentExecutingModId ?? "Unknown";
+            });
+
             luaScript.Globals["Mods"] = modTable;
         }
     }
