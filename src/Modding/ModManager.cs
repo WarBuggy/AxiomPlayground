@@ -6,9 +6,9 @@ public sealed class ModManager
 {
     private static readonly ModManager _instance = new();
     public static ModManager Instance => _instance;
-    private const string CORE_MOD_ID = "Core";
+    public const string CORE_MOD_ID = "Core";
     // Order matters: earlier mods load first and can be overridden by later ones
-    private readonly List<string> RESERVED_MOD_IDS =
+    private static readonly List<string> RESERVED_MOD_IDS =
         [
             CORE_MOD_ID,
             "DLC1",
