@@ -31,8 +31,12 @@
 
   <ItemGroup>
     <Reference Include="MoonSharp.Interpreter">
-      <HintPath>C:\Code\Moonsharp\interpreter\netcore\MoonSharp.Interpreter.dll</HintPath>
+      <HintPath>../../lib/Dev/net10.0/MoonSharp.Interpreter.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="LuaLib\**\*.lua" />
   </ItemGroup>
 
 </Project>

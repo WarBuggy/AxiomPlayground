@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using MoonSharp.Interpreter;
 using AxiomPlayground.Modding;
@@ -53,7 +54,14 @@ public sealed class ScriptManager
             if (!Directory.Exists(scriptsRoot))
                 continue;
 
-            foreach (var luaFileFullPath in Directory.GetFiles(scriptsRoot, "*.lua", SearchOption.AllDirectories))
+            // If init.lua exists, only auto-execute it (module-based mod).
+            // Otherwise, auto-execute all .lua files alphabetically (legacy).
+            string initPath = Path.Combine(scriptsRoot, "init.lua");
+            IEnumerable<string> luaFiles = File.Exists(initPath)
+                ? [initPath]
+                : Directory.GetFiles(scriptsRoot, "*.lua", SearchOption.AllDirectories).Order();
+
+            foreach (var luaFileFullPath in luaFiles)
             {
                 string relativePath = Path.GetRelativePath(scriptsRoot, luaFileFullPath).Replace("\\", "/");
                 string metaPath = Path.ChangeExtension(luaFileFullPath, ".json");
@@ -208,11 +216,17 @@ public sealed class ScriptManager
 
     public void ExecuteQueue(List<ScriptQueueItem> queue)
     {
+        _luaScript.Options.ScriptLoader = new ModAwareScriptLoader();
+
         // Register all C# bindings
         LuaBindingRegistrar.RegisterAllBindings(_luaScript, _luaBindingTypes);
         new EventLuaBinding(_eventBus).Register(_luaScript);
 
         _luaScript.Globals["ExecutingModId"] = (Func<string>)(() => _currentExecutingModId ?? "Unknown");
+
+        // Load engine-provided Lua utilities (available as globals to all mods)
+        LoadEmbeddedLuaLib();
+
         foreach (var item in queue)
         {
             if (!item.Execute)
@@ -253,6 +267,54 @@ public sealed class ScriptManager
         }
     }
 
+    private void LoadEmbeddedLuaLib()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var prefix = "AxiomPlayground.Scripting.LuaLib.";
+
+        foreach (var resourceName in assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(prefix) && n.EndsWith(".lua"))
+            .Order())
+        {
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null) continue;
+
+            using var reader = new StreamReader(stream);
+            var code = reader.ReadToEnd();
+            var friendlyName = resourceName[prefix.Length..];
+
+            try
+            {
+                _luaScript.DoString(code, codeFriendlyName: friendlyName);
+                Console.WriteLine($"[ScriptManager] Loaded engine utility: {friendlyName}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ScriptManager] Failed to load engine utility '{friendlyName}': {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tick engine-level Lua utilities (Timer, etc.) each frame.
+    /// Called from the game loop before mod events.
+    /// </summary>
+    public void TickEngineCore(float deltaTime, float totalTime)
+    {
+        var fn = _luaScript.Globals.Get("__engineCoreUpdate");
+        if (fn.Type == DataType.Function)
+        {
+            try
+            {
+                _luaScript.Call(fn, DynValue.NewNumber(deltaTime), DynValue.NewNumber(totalTime));
+            }
+            catch (ScriptRuntimeException ex)
+            {
+                Console.WriteLine($"[ScriptManager] Engine core loop error: {ex.DecoratedMessage}");
+            }
+        }
+    }
+
     public void Fire(string eventName, params DynValue[] args)
     {
         // LuaEventBus is still used to store handlers
@@ -279,6 +341,19 @@ public sealed class ScriptManager
 
             _currentExecutingModId = previous;
         }
+    }
+
+    public void CallWithModContext(string modId, Closure fn, params DynValue[] args)
+    {
+        var previous = _currentExecutingModId;
+        _currentExecutingModId = modId;
+        try { fn.Call(args); }
+        catch (ScriptRuntimeException ex)
+        {
+            throw new Exception(
+                $"[ScriptManager] Lua error in scene callback for mod '{modId}': {ex.DecoratedMessage}.", ex);
+        }
+        finally { _currentExecutingModId = previous; }
     }
 
     public DynValue[] BuildEventArgs(IEnumerable<object?> args)

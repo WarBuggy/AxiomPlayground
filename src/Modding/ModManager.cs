@@ -15,6 +15,7 @@ public sealed class ModManager
             "DLC2",
             "DLC3",
         ];
+    public IReadOnlyList<string> ReservedModIds => RESERVED_MOD_IDS;
     // Single dictionary: ModSource -> (BasePath, Mods dictionary)
     private readonly Dictionary<ModSource, (string Path, Dictionary<string, Mod> Mods)> _mods
         = new()
