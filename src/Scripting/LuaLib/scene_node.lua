@@ -1,15 +1,15 @@
 -- ============================================
--- Engine Utility — SceneNode
+-- Engine Utility — Node
 -- Thin Lua wrapper over the C# scene tree API.
 -- Available as a global to all mods.
 -- ============================================
 
-SceneNode = {}
-SceneNode.__index = SceneNode
+Node = {}
+Node.__index = Node
 
-function SceneNode.new(opts)
+function Node.new(opts)
     opts = opts or {}
-    local self = setmetatable({}, SceneNode)
+    local self = setmetatable({}, Node)
     self.name        = opts.name or "unnamed"
     self._onEnter    = opts.onEnter
     self._onExit     = opts.onExit
@@ -27,7 +27,7 @@ function SceneNode.new(opts)
     return self
 end
 
-function SceneNode:_engineOpts()
+function Node:_engineOpts()
     local node = self
     return {
         name = self.name,
@@ -49,7 +49,7 @@ function SceneNode:_engineOpts()
     }
 end
 
-function SceneNode:addChild(child)
+function Node:addChild(child)
     if self._childMap[child.name] then return self end
     child._parent = self
     self._children[#self._children + 1] = child
@@ -63,7 +63,7 @@ function SceneNode:addChild(child)
     return self
 end
 
-function SceneNode:removeChild(name)
+function Node:removeChild(name)
     local child = self._childMap[name]
     if not child then return self end
     child._parent = nil
@@ -80,11 +80,11 @@ function SceneNode:removeChild(name)
     return self
 end
 
-function SceneNode:getChild(name)
+function Node:getChild(name)
     return self._childMap[name]
 end
 
-function SceneNode:find(name)
+function Node:find(name)
     if self._childMap[name] then return self._childMap[name] end
     for _, child in ipairs(self._children) do
         local found = child:find(name)
@@ -93,7 +93,7 @@ function SceneNode:find(name)
     return nil
 end
 
-function SceneNode:setActive(bool)
+function Node:setActive(bool)
     if self.active == bool then return end
     self.active = bool
     if self._registered or (self._parent and self._parent._registered) then
@@ -101,13 +101,13 @@ function SceneNode:setActive(bool)
     end
 end
 
-function SceneNode:getShared()
+function Node:getShared()
     if self.shared then return self.shared end
     if self._parent then return self._parent:getShared() end
     return nil
 end
 
-function SceneNode:registerAsScene(sceneName)
+function Node:registerAsScene(sceneName)
     Scene.RegisterTree(sceneName, self:_engineOpts())
     self._registered = true
 
@@ -119,7 +119,7 @@ function SceneNode:registerAsScene(sceneName)
     self._pendingChildren = {}
 end
 
-function SceneNode:_flushPending()
+function Node:_flushPending()
     for _, child in ipairs(self._pendingChildren) do
         Scene.AddChild(self.name, child:_engineOpts())
         child._registered = true
