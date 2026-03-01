@@ -232,6 +232,9 @@ public sealed class ScriptManager
             if (!item.Execute)
                 continue;
 
+            if (Modding.ModErrorTracker.Instance.IsModErrored(item.ModId))
+                continue;
+
             var previousModId = _currentExecutingModId;
             _currentExecutingModId = item.ModId;
             try
@@ -243,20 +246,14 @@ public sealed class ScriptManager
             }
             catch (ScriptRuntimeException ex)
             {
-                // Lua runtime error with stack trace
-                Console.WriteLine
-                (
-                    $"[ScriptManager] LUA runtime error from Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.DecoratedMessage}\n" +
-                    "[ScriptManager] LUA execution stops at the point of this error."
+                Modding.ModErrorTracker.Instance.MarkModErrored(
+                    item.ModId, ex.DecoratedMessage, $"script '{item.RelativePath}'"
                 );
             }
             catch (Exception ex)
             {
-                // Other unexpected errors (file access, etc.)
-                Console.WriteLine
-                (
-                    $"[ScriptManager] LUA runtime error from Mod: {item.ModId}, File: {item.RelativePath}, Error: {ex.Message}\n" +
-                    "[ScriptManager] LUA execution stops at the point of this error."
+                Modding.ModErrorTracker.Instance.MarkModErrored(
+                    item.ModId, ex.Message, $"script '{item.RelativePath}'"
                 );
             }
             finally
@@ -324,6 +321,9 @@ public sealed class ScriptManager
 
         foreach (var kv in handlers)
         {
+            if (Modding.ModErrorTracker.Instance.IsModErrored(kv.Key))
+                continue;
+
             var previous = _currentExecutingModId;
             _currentExecutingModId = kv.Key;
 
@@ -332,10 +332,21 @@ public sealed class ScriptManager
                 try { fn.Call(args); }
                 catch (ScriptRuntimeException ex)
                 {
-                    // Throw raw string exception with context
-                    throw new Exception(
-                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}.", ex
+                    Modding.ModErrorTracker.Instance.MarkModErrored(
+                        _currentExecutingModId,
+                        ex.DecoratedMessage,
+                        $"event '{eventName}'"
                     );
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Modding.ModErrorTracker.Instance.MarkModErrored(
+                        _currentExecutingModId,
+                        ex.Message,
+                        $"event '{eventName}'"
+                    );
+                    break;
                 }
             }
 
@@ -343,15 +354,39 @@ public sealed class ScriptManager
         }
     }
 
+    public string? DoString(string code, string codeFriendlyName = "console")
+    {
+        try
+        {
+            var result = _luaScript.DoString(code, codeFriendlyName: codeFriendlyName);
+            if (result == null || result.IsNil() || result.IsVoid())
+                return null;
+            return result.ToPrintString();
+        }
+        catch (ScriptRuntimeException ex)
+        {
+            return $"Runtime error: {ex.DecoratedMessage}";
+        }
+        catch (MoonSharp.Interpreter.SyntaxErrorException ex)
+        {
+            return $"Syntax error: {ex.DecoratedMessage}";
+        }
+    }
+
     public void CallWithModContext(string modId, Closure fn, params DynValue[] args)
     {
+        if (Modding.ModErrorTracker.Instance.IsModErrored(modId)) return;
+
         var previous = _currentExecutingModId;
         _currentExecutingModId = modId;
         try { fn.Call(args); }
         catch (ScriptRuntimeException ex)
         {
-            throw new Exception(
-                $"[ScriptManager] Lua error in scene callback for mod '{modId}': {ex.DecoratedMessage}.", ex);
+            Modding.ModErrorTracker.Instance.MarkModErrored(modId, ex.DecoratedMessage, "scene callback");
+        }
+        catch (Exception ex)
+        {
+            Modding.ModErrorTracker.Instance.MarkModErrored(modId, ex.Message, "scene callback");
         }
         finally { _currentExecutingModId = previous; }
     }

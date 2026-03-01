@@ -29,13 +29,19 @@ public sealed class ModAwareScriptLoader : ScriptLoaderBase
 
     public override string ResolveModuleName(string modname, Table globalContext)
     {
-        string modId = ScriptManager.Instance.CurrentExecutingModId;
-        string modFolder = ModManager.Instance.GetModFolderPath(modId);
+        try
+        {
+            string modId = ScriptManager.Instance.CurrentExecutingModId;
+            string modFolder = ModManager.Instance.GetModFolderPath(modId);
 
-        // Normalize forward slashes to OS separator and append .lua
-        string normalized = modname.Replace('/', Path.DirectorySeparatorChar);
-        string resolved = Path.Combine(modFolder, SCRIPTS_FOLDER, normalized + ".lua");
-
-        return resolved;
+            // Normalize forward slashes to OS separator and append .lua
+            string normalized = modname.Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(modFolder, SCRIPTS_FOLDER, normalized + ".lua");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ModAwareScriptLoader] Failed to resolve '{modname}': {ex.Message}");
+            return modname + ".lua";
+        }
     }
 }
