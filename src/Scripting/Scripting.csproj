@@ -35,8 +35,5 @@
     </Reference>
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="LuaLib\**\*.lua" />
-  </ItemGroup>
 
 </Project>

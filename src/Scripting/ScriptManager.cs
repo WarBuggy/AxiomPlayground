@@ -22,6 +22,12 @@ public sealed class ScriptManager
     private readonly List<Type> _luaBindingTypes;
     private readonly LuaEventBus _eventBus = new();
     private readonly Script _luaScript = new();
+    private readonly List<(Assembly assembly, string prefix)> _externalLuaLibSources = [];
+
+    public void RegisterLuaLibSource(Assembly assembly, string prefix)
+    {
+        _externalLuaLibSources.Add((assembly, prefix));
+    }
 
     private ScriptManager()
     {
@@ -225,7 +231,7 @@ public sealed class ScriptManager
         _luaScript.Globals["ExecutingModId"] = (Func<string>)(() => _currentExecutingModId ?? "Unknown");
 
         // Load engine-provided Lua utilities (available as globals to all mods)
-        LoadEmbeddedLuaLib();
+        LoadAllLuaLibs();
 
         foreach (var item in queue)
         {
@@ -264,11 +270,18 @@ public sealed class ScriptManager
         }
     }
 
-    private void LoadEmbeddedLuaLib()
+    private void LoadAllLuaLibs()
     {
-        var assembly = Assembly.GetExecutingAssembly();
-        var prefix = "AxiomPlayground.Scripting.LuaLib.";
+        // Built-in libs from AxiomPlayground (if any remain)
+        LoadLuaLibFromAssembly(Assembly.GetExecutingAssembly(), "AxiomPlayground.Scripting.LuaLib.");
 
+        // External libs (Engine, etc.)
+        foreach (var (assembly, prefix) in _externalLuaLibSources)
+            LoadLuaLibFromAssembly(assembly, prefix);
+    }
+
+    private void LoadLuaLibFromAssembly(Assembly assembly, string prefix)
+    {
         foreach (var resourceName in assembly.GetManifestResourceNames()
             .Where(n => n.StartsWith(prefix) && n.EndsWith(".lua"))
             .Order())
