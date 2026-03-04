@@ -272,7 +272,7 @@ public sealed class ScriptManager
                 {
                     // Throw raw string exception with context
                     throw new Exception(
-                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}.", ex
+                        $"[ScriptManager] Lua error in event '{eventName}' for mod '{_currentExecutingModId}': {ex.DecoratedMessage}", ex
                     );
                 }
             }

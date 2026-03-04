@@ -21,14 +21,6 @@ public sealed class PathHistory
         _events.Add(new PathEvent(modId, PathEventType.Overwrite, value));
     }
 
-    public void AddDerived(string modId, object? value, IReadOnlyList<string> causedByPaths)
-    {
-        if (causedByPaths == null || causedByPaths.Count == 0)
-            throw new ArgumentException("[PathHistory] causedByPaths must contain at least one path.", nameof(causedByPaths));
-
-        _events.Add(new PathEvent(modId, PathEventType.Derived, value, causedByPaths));
-    }
-
     public void AddDeleted(string modId, object? value, IReadOnlyList<string> causedByPaths)
     {
         if (causedByPaths == null || causedByPaths.Count == 0)
@@ -73,6 +65,5 @@ public enum PathEventType
 {
     Create,
     Overwrite,
-    Derived,
     Deleted,
 }

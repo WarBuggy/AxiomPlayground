@@ -4,189 +4,119 @@ public class DefinitionManager : BaseManager
 {
     private static readonly DefinitionManager _instance = new();
     public static DefinitionManager Instance => _instance;
-    private readonly Dictionary<string, HashSet<string>> _modDefinitions = [];
-    private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _definitionTypes = [];
-    private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _defPathsCache = [];
+    private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _definitions = [];
+    private readonly Dictionary<DefinitionKey, HashSet<string>> _definitionPaths = [];
 
-    private DefinitionManager() : base("definition", true, "definition") { }
+    private DefinitionManager() : base("definition", true) { }
 
-    public override Dictionary<string, Dictionary<string, object?>> ProcessPathData
-    (
-        IReadOnlyList<CategoryData> collectedCategoryDataList,
-        out Dictionary<string, Dictionary<string, PathHistory>> processedHistory
-    )
+    public override void ProcessPathData(IReadOnlyList<CategoryData> collectedCategoryDataList)
     {
         foreach (var modData in collectedCategoryDataList)
         {
             string modId = modData.ModId;
-            var definitions = modData.Values;
 
-            if (!_modDefinitions.ContainsKey(modId))
-                _modDefinitions[modId] = [];
-            if (!_definitionTypes.ContainsKey(modId))
-                _definitionTypes[modId] = [];
-            if (!_defPathsCache.ContainsKey(modId))
-                _defPathsCache[modId] = [];
+            if (!_definitions.TryGetValue(modId, out var typeMap))
+            {
+                typeMap = [];
+                _definitions[modId] = typeMap;
+            }
 
-            foreach (var pathAndValue in definitions)
+            foreach (var pathAndValue in modData.Values)
             {
                 var path = pathAndValue.Key;
-                var pathParts = path.Split(".");
+                var parts = path.Split('.');
 
-                if (pathParts.Length < 3)
+                if (parts.Length < 5)
                     continue;
 
-                string defName = pathParts[1];
+                if (parts[3] != "payload")
+                    continue;
 
-                // If this def is new, register it
-                bool isNewDef = !_modDefinitions[modId].Contains(defName);
-                if (isNewDef)
+                string typeName = parts[1];
+                string defName = parts[2];
+
+                if (!typeMap.TryGetValue(typeName, out var defSet))
                 {
-                    _modDefinitions[modId].Add(defName);
-
-                    // Handle Type
-                    string typePath = $"{CategoryName}.{defName}.type";
-                    if (definitions.TryGetValue(typePath, out var typeValue))
-                    {
-                        string? typeStr = typeValue as string;
-                        if (!string.IsNullOrEmpty(typeStr))
-                        {
-                            if (!_definitionTypes[modId].TryGetValue(typeStr, out var defList))
-                            {
-                                defList = [];
-                                _definitionTypes[modId][typeStr] = defList;
-                            }
-                            defList.Add(defName);
-                        }
-                    }
-
-                    // Initialize path cache for this def
-                    if (!_defPathsCache[modId].ContainsKey(defName))
-                        _defPathsCache[modId][defName] = [];
+                    defSet = [];
+                    typeMap[typeName] = defSet;
                 }
+                defSet.Add(defName);
 
-                // Add the current path to the def's path cache
-                string prefix = $"{CategoryName}.{defName}.payload.";
-                if (path.StartsWith(prefix))
+                var key = new DefinitionKey(modId, typeName, defName);
+                if (!_definitionPaths.TryGetValue(key, out var paths))
                 {
-                    string relativePath = path[prefix.Length..];
-                    if (!string.IsNullOrEmpty(relativePath))
-                        _defPathsCache[modId][defName].Add(relativePath);
+                    paths = [];
+                    _definitionPaths[key] = paths;
                 }
+                paths.Add(path);
             }
         }
-
-        // return empty 
-        processedHistory = [];
-        return [];
     }
 
     public override IEnumerable<LoadEventDispatch> CollectLoadEvents()
     {
-        foreach (var (modId, defNames) in _modDefinitions)
+        foreach (var (modId, typeMap) in _definitions)
         {
-            foreach (var defName in defNames)
+            foreach (var (typeName, defSet) in typeMap)
             {
-                string? type = null;
-
-                if (_definitionTypes.TryGetValue(modId, out var typeMap))
+                foreach (var defName in defSet)
                 {
-                    foreach (var kv in typeMap)
-                    {
-                        if (kv.Value.Contains(defName))
-                        {
-                            type = kv.Key;
-                            break;
-                        }
-                    }
-                }
+                    var key = new DefinitionKey(modId, typeName, defName);
+                    _definitionPaths.TryGetValue(key, out var defPaths);
 
-                yield return new LoadEventDispatch
-                (
-                    "OnDefinitionCreated",
-                    modId,
-                    [modId, defName, type]
-                );
+                    yield return new LoadEventDispatch(
+                        "OnDefinitionCreated",
+                        modId,
+                        [modId, typeName, defName, (defPaths ?? []).ToArray()]
+                    );
+                }
             }
         }
     }
 
-    public bool TryGetPayload(string modId, string defName, string propertyName, out object? value)
+    public bool TryGetPayload(string modId, string typeName, string defName, IEnumerable<string> pathParts, out object? value)
     {
-        value = null;
+        // Prepend typeName and defName to the path
+        var fullPathParts = new List<string> { typeName, defName, "payload" };
+        fullPathParts.AddRange(pathParts);
 
-        if (!_modDefinitions.TryGetValue(modId, out var defNames) || !defNames.Contains(defName))
-            return false;
+        // Build the full path string once
+        string fullPath = CreateFullPath([.. fullPathParts]);
 
-        // Build full path
-        string fullPath = CreateFullPath([defName, "payload", propertyName]);
-
+        // Try to get the value
         if (DataManager.Instance.TryGetData(modId, fullPath, out value))
-        {
             return true;
-        }
 
-        return false; // property does not exist
-    }
-
-    public bool TryGetType(string modId, string defName, out string? type)
-    {
-        string fullPath = CreateFullPath([defName, "type"]);
-
-        if (DataManager.Instance.TryGetData(modId, fullPath, out var typeValue))
-        {
-            type = typeValue as string;
-            return true;
-        }
-        type = null;
+        value = null;
         return false;
     }
 
-    public List<string> GetDefinitionsByType(string modId, string type)
+    public void SetPayload(string modId, string typeName, string defName, IEnumerable<string> pathParts, string actingModId, object? value)
     {
-        if (_definitionTypes.TryGetValue(modId, out var typeDict) &&
-            typeDict.TryGetValue(type, out var defList))
-        {
-            return [.. defList]; // return a copy to be safe
-        }
+        if (!_definitions.TryGetValue(modId, out var typeMap) ||
+            !typeMap.TryGetValue(typeName, out var defMap) ||
+            !defMap.Contains(defName))
+            throw new InvalidOperationException(
+                $"[DefinitionManager] Definition '{defName}' of type '{typeName}' does not exist for mod '{modId}'.");
 
-        return []; // empty list if type not found
+        // Prepend typeName and defName to the path
+        var fullPathParts = new List<string> { typeName, defName, "payload" };
+        fullPathParts.AddRange(pathParts);
+
+        string fullPath = CreateFullPath([.. fullPathParts]);
+        DataManager.Instance.SetData(modId, fullPath, actingModId, value);
     }
 
-    public List<string> GetDefinitions(string modId)
+    public override void CleanupAfterLoadEvents()
     {
-        if (_modDefinitions.TryGetValue(modId, out var defNames))
-        {
-            return [.. defNames]; // return a copy to be safe
-        }
-
-        return []; // empty list if mod has no definitions
+        foreach (var paths in _definitionPaths.Values)
+            paths.Clear();
     }
 
-    public bool Exists(string modId, string defName)
-    {
-        return _modDefinitions.TryGetValue(modId, out var defNames) && defNames.Contains(defName);
-    }
-
-    public void SetPayload(string modId, string defName, string propertyName, object? value, string actingModId)
-    {
-        if (!_modDefinitions.TryGetValue(modId, out var defNames) || !defNames.Contains(defName))
-            throw new InvalidOperationException($"[DefinitionManager] Definition '{defName}' does not exist for mod '{modId}'.");
-
-        string fullPath = CreateFullPath([defName, "payload", propertyName]);
-
-        DataManager.Instance.SetData(modId, fullPath, value, actingModId);
-    }
-
-    public List<string> GetPayloadPaths(string modId, string defName, string? rootKey = null)
-    {
-        if (!_defPathsCache.TryGetValue(modId, out var modCache) || !modCache.TryGetValue(defName, out var paths))
-            return []; // empty list if mod/def not found
-
-        if (string.IsNullOrEmpty(rootKey))
-            return [.. paths]; // return all paths as list
-
-        // Filter paths by rootKey prefix (e.g., "Payload.list")
-        return [.. paths.Where(p => p.StartsWith(rootKey + "."))];
-    }
+    private readonly record struct DefinitionKey
+    (
+        string ModId,
+        string TypeName,
+        string DefName
+    );
 }

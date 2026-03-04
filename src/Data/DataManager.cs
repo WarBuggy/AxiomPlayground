@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using AxiomPlayground.GameFlag;
 using AxiomPlayground.Modding;
@@ -11,7 +12,7 @@ public sealed class DataManager
     private const string DATA_FOLDER = "Data";
     private readonly Dictionary<string, DataContainer> _dataContainers = new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
-    private readonly HashSet<string> _registeredCategories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _systemCategories = [];
     private DataManager() { }
 
     public void LoadAll(List<Mod> mods, IReadOnlyList<BaseManager> managers)
@@ -19,7 +20,7 @@ public sealed class DataManager
         foreach (var manager in managers)
         {
             if (manager.RequiredProcessedPaths)
-                RegisterCategories([manager.CategoryName]);
+                _systemCategories.Add(manager.CategoryName);
         }
 
         if (mods == null || mods.Count == 0)
@@ -28,12 +29,13 @@ public sealed class DataManager
         var validModIds = mods.Select(m => m.ModId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var frameworkDebugEnabled = GameFlagManager.IsSet(FrameworkGameFlag.Debug);
 
-        SetModListData(mods, frameworkDebugEnabled);
+        // prepare data container for Core mod
+        PrepareCoreDataContainer(mods, frameworkDebugEnabled);
 
         foreach (var mod in mods)
         {
             // Give every mod a data container
-            if (mod.ModId != "Core") // skip Core because already exists
+            if (mod.ModId != ModManager.CORE_MOD_ID) // skip Core because already exists
                 _dataContainers[mod.ModId] = new DataContainer(frameworkDebugEnabled);
 
             string dataRoot = Path.Combine(ModManager.Instance.GetModFolderPath(mod), DATA_FOLDER);
@@ -86,7 +88,7 @@ public sealed class DataManager
                     var value = kv.Value;
                     string? category = null;
                     string keyFirstPart = key.Split(".")[0];
-                    if (_registeredCategories.Contains(keyFirstPart))
+                    if (CategoryExists(keyFirstPart))
                     {
                         category = keyFirstPart;
                     }
@@ -106,8 +108,7 @@ public sealed class DataManager
                 continue;
 
             IReadOnlyList<CategoryData> categoryData = CollectDataFromCategory(manager.CategoryName);
-            var processedData = manager.ProcessPathData(categoryData, out var processedHistory);
-            AddProcessedData(manager.ProcessedCategoryName, processedData, processedHistory);
+            manager.ProcessPathData(categoryData);
         }
     }
 
@@ -212,8 +213,6 @@ public sealed class DataManager
 
         if (string.IsNullOrWhiteSpace(owningModId))
             throw new ArgumentException("[DataManager] owningModId cannot be null or empty.");
-        if (string.IsNullOrWhiteSpace(path))
-            throw new ArgumentException("[DataManager] path cannot be null or empty.");
 
         if (!_dataContainers.TryGetValue(owningModId, out var container))
             throw new InvalidOperationException($"[DataManager] No data container found for mod '{owningModId}'.");
@@ -221,7 +220,7 @@ public sealed class DataManager
         return container.TryGetFlatData(path, out value);
     }
 
-    public void SetData(string owningModId, string path, object? value, string actingModId)
+    public void SetData(string owningModId, string path, string actingModId, object? value)
     {
         if (string.IsNullOrWhiteSpace(owningModId))
             throw new ArgumentException("[DataManager] owningModId cannot be null or empty.");
@@ -235,13 +234,7 @@ public sealed class DataManager
         if (!_dataContainers.TryGetValue(owningModId, out var container))
             throw new InvalidOperationException($"[DataManager] No data container found for mod '{owningModId}'.");
 
-        container.SetFlatData(owningModId, path, value, actingModId);
-    }
-
-    public void RegisterCategories(IEnumerable<string> categories)
-    {
-        foreach (var category in categories)
-            _registeredCategories.Add(category);
+        container.SetFlatData(owningModId, path, actingModId, value);
     }
 
     public IReadOnlyList<CategoryData> CollectDataFromCategory(string category)
@@ -283,58 +276,6 @@ public sealed class DataManager
         return result;
     }
 
-    public void AddProcessedData
-    (
-        string processedCategoryName,
-        Dictionary<string, Dictionary<string, object?>> processedAnimationData,
-        Dictionary<string, Dictionary<string, PathHistory>> processedHistory
-    )
-    {
-        foreach (var item in processedAnimationData)
-        {
-            var modId = item.Key;
-            var data = item.Value;
-            if (!_dataContainers.TryGetValue(modId, out var container))
-                continue; // skip this mod
-
-            container.HandleFlatData(modId, data, false, processedCategoryName);
-
-            if (processedHistory.TryGetValue(modId, out var modHisotry))
-                container.AddProcessedHistory(modHisotry);
-        }
-    }
-
-    public bool TryCreateData(string owningModId, string path, object? value, string actingModId, out string? error)
-    {
-        error = null;
-
-        if (string.IsNullOrWhiteSpace(owningModId))
-        {
-            error = "[DataManager] owningModId cannot be null or empty.";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            error = "[DataManager] path cannot be null or empty.";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(actingModId))
-        {
-            error = "[DataManager] actingModId cannot be null or empty.";
-            return false;
-        }
-
-        if (!_dataContainers.TryGetValue(owningModId, out var container))
-        {
-            error = $"[DataManager] No data container found for mod '{owningModId}'.";
-            return false;
-        }
-
-        return container.TryCreateFlatData(owningModId, path, value, actingModId, out error);
-    }
-
     // TODO: remove this or make it private
     public DataContainer? TryGetContainer(string modId)
     {
@@ -342,7 +283,7 @@ public sealed class DataManager
         return container;
     }
 
-    public void ClearCategoryIndex(string category)
+    private void ClearCategoryIndex(string category)
     {
         foreach (var (_, container) in _dataContainers)
             container.ClearCategoryIndex(category);
@@ -359,21 +300,30 @@ public sealed class DataManager
         public Dictionary<string, object>? Data { get; set; }
     }
 
-    private void SetModListData(List<Mod> mods, bool frameworkDebugEnabled)
+    private void PrepareCoreDataContainer(List<Mod> mods, bool frameworkDebugEnabled)
     {
         var coreDataContainer = new DataContainer(frameworkDebugEnabled);
         var modLedger = new LedgerArray();
         foreach (var mod in mods)
         {
-            modLedger.InsertLast(mod.ModId, "Core");
+            modLedger.InsertLast(mod.ModId, ModManager.CORE_MOD_ID);
         }
-        if (coreDataContainer.TryCreateFlatData("Core", "mods.list", modLedger, "Core", out var error))
+        if (coreDataContainer.TryCreateFlatData(ModManager.CORE_MOD_ID, "mods.list", ModManager.CORE_MOD_ID, modLedger, out var error))
         {
-            _dataContainers["Core"] = coreDataContainer;
+            _dataContainers[ModManager.CORE_MOD_ID] = coreDataContainer;
             return;
         }
         throw new Exception($"[DataManager] Failed to create path data of all mod list. Error: {error}");
     }
+
+    private bool CategoryExists(string category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return false;
+
+        return _systemCategories.Contains(category);
+    }
+
 
     #region FrameworkGameFlag.Debug
 

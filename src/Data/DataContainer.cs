@@ -125,7 +125,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
 
     #region Functions for manipulate path values during runtime
 
-    public void SetFlatData(string owningModId, string path, object? value, string actingModId)
+    public void SetFlatData(string owningModId, string path, string actingModId, object? value)
     {
         if (!_flatData.ContainsKey(path))
         {
@@ -141,7 +141,7 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
         RecordWrite(path, actingModId, existed: true, value);
     }
 
-    public bool TryCreateFlatData(string owningModId, string path, object? value, string actingModId, out string? error)
+    public bool TryCreateFlatData(string owningModId, string path, string actingModId, object? value, out string? error)
     {
         error = null;
 
@@ -236,20 +236,6 @@ public sealed class DataContainer(bool frameworkDebugEnabled)
 
         history = null;
         return false;
-    }
-
-    public void AddProcessedHistory(IReadOnlyDictionary<string, PathHistory> processedHistory)
-    {
-        if (!_frameworkDebugEnabled)
-        {
-            Console.WriteLine("[DataContainer] Framework debug mode is not enabled. Processed history is ignored.");
-            return;
-        }
-
-        foreach (var (icomingPath, incomingHistory) in processedHistory)
-        {
-            _pathHistory[icomingPath] = incomingHistory;
-        }
     }
 
     public void PrintHistoryList(string path)

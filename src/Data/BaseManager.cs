@@ -1,38 +1,34 @@
 using System.Reflection;
+using System.Text;
 
 namespace AxiomPlayground.Data;
 
-public abstract class BaseManager(string categoryName, bool requiredProcessedPaths = false, string? processedCategoryName = null)
+public abstract class BaseManager(string categoryName, bool requiredProcessedPaths = false)
 {
 
     public string CategoryName { get; } = categoryName;
-    private static readonly string DEFAULT_PROCESSED_PREFIX = "Processed";
     public readonly bool RequiredProcessedPaths = requiredProcessedPaths;
-    public string ProcessedCategoryName { get; } =
-        processedCategoryName ?? categoryName + DEFAULT_PROCESSED_PREFIX;
 
-    public virtual Dictionary<string, Dictionary<string, object?>> ProcessPathData
-    (
-        IReadOnlyList<CategoryData> collectedCategoryDataList,
-        out Dictionary<string, Dictionary<string, PathHistory>> processedHistory
-    )
-    {
-        processedHistory = [];
-        return [];
-    }
+    public virtual void ProcessPathData(IReadOnlyList<CategoryData> collectedCategoryDataList) { }
 
-    public virtual IEnumerable<LoadEventDispatch> CollectLoadEvents()
-    {
-        yield break;
-    }
-
+    public virtual IEnumerable<LoadEventDispatch> CollectLoadEvents() { yield break; }
+    public virtual void CleanupAfterLoadEvents() { }
     public string CreateFullPath(params string[] elements)
     {
-        string prefix = RequiredProcessedPaths ? ProcessedCategoryName : CategoryName;
         if (elements == null || elements.Length == 0)
-            return prefix;
+            return CategoryName;
 
-        return prefix + "." + string.Join(".", elements);
+        var sb = new StringBuilder();
+
+        sb.Append(CategoryName);
+
+        foreach (var element in elements)
+        {
+            sb.Append('.');
+            sb.Append(element);
+        }
+
+        return sb.ToString();
     }
 
     public static string[] PrependPath(string[] original, params string[] prefix)
