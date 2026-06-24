@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Configurations>Debug;Dev;Release</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modding\Modding.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <!-- Dev configuration -->
+  <PropertyGroup Condition="'$(Configuration)'=='Dev'">
+    <DefineConstants>DEV_ENV;TRACE</DefineConstants>
+    <OutputPath>../../../in254/bin/Dev/Launcher/</OutputPath>
+  </PropertyGroup>
+
+  <!-- Release configuration -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>../../../in254/bin/Release/Launcher/</OutputPath>
+  </PropertyGroup>
+
+  <!-- Debug fallback (important!) -->
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <OutputPath>../../../in254/bin/Debug/Launcher/</OutputPath>
+  </PropertyGroup>
+
+</Project>
