@@ -1,6 +1,10 @@
 ﻿namespace Launcher;
 
-partial class Form1
+using System.Resources;
+using System.Reflection;
+using System.Globalization;
+
+partial class Launcher
 {
     /// <summary>
     ///  Required designer variable.
@@ -31,8 +35,17 @@ partial class Form1
         components = new System.ComponentModel.Container();
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(800, 450);
-        Text = "Form1";
+
+        ApplyLocalization();
+    }
+
+    private void ApplyLocalization()
+    {
+        var loc = new ResourceManager("Launcher.Localization", typeof(Launcher).Assembly);
+
+        this.Text = loc.GetString("formTitle", CultureInfo.CurrentUICulture);
     }
 
     #endregion
 }
+

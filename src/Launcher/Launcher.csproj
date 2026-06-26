@@ -35,4 +35,14 @@
     <OutputPath>../../../in254/bin/Debug/Launcher/</OutputPath>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\Localization.resx">
+      <LogicalName>Launcher.Localization.resources</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>
