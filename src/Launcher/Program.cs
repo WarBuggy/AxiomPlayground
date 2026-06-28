@@ -1,6 +1,7 @@
 namespace Launcher;
 
 using System.Globalization;
+using global::Launcher.Config;
 
 static class Program
 {
@@ -10,11 +11,10 @@ static class Program
     [STAThread]
     static void Main()
     {
-        Thread.CurrentThread.CurrentUICulture = new CultureInfo("es");
+        ConfigManager.Load();
 
+        //Thread.CurrentThread.CurrentUICulture = new CultureInfo("es");
 
-        // To customize application configuration such as set high DPI settings or default font,
-        // see https://aka.ms/applicationconfiguration.
         ApplicationConfiguration.Initialize();
         Application.Run(new Launcher());
     }

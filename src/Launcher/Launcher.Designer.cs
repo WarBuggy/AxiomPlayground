@@ -1,40 +1,60 @@
 ﻿namespace Launcher;
 
-using System.Resources;
-using System.Reflection;
 using System.Globalization;
+using System.Reflection;
+using System.Resources;
+using global::Launcher.Config;
 
 partial class Launcher
 {
-    /// <summary>
-    ///  Required designer variable.
-    /// </summary>
     private System.ComponentModel.IContainer components = null;
 
-    /// <summary>
-    ///  Clean up any resources being used.
-    /// </summary>
-    /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+    private MenuStrip menuMain;
+    private Panel panelLeft;
+    private Panel panelRight;
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing && (components != null))
+        if (disposing && components != null)
         {
             components.Dispose();
         }
+
         base.Dispose(disposing);
     }
 
-    #region Windows Form Designer generated code
-
-    /// <summary>
-    ///  Required method for Designer support - do not modify
-    ///  the contents of this method with the code editor.
-    /// </summary>
     private void InitializeComponent()
     {
         components = new System.ComponentModel.Container();
+
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(800, 450);
+        ClientSize = new Size(ConfigManager.Launcher.WindowWidth, ConfigManager.Launcher.WindowHeight);
+        StartPosition = FormStartPosition.CenterScreen;
+        if (ConfigManager.Launcher.StartMaximized)
+        {
+            WindowState = FormWindowState.Maximized;
+        }
+
+        menuMain = new MenuStrip();
+        panelLeft = new Panel();
+        var panelDivider = new Panel();
+        panelRight = new Panel();
+
+        panelLeft.Dock = DockStyle.Left;
+        panelLeft.Width = ConfigManager.Launcher.LeftPanelWidth;
+
+        panelDivider.Dock = DockStyle.Left;
+        panelDivider.Width = 1;
+        panelDivider.BackColor = Color.LightGray;
+
+        panelRight.Dock = DockStyle.Fill;
+
+        Controls.Add(panelRight);
+        Controls.Add(panelDivider);
+        Controls.Add(panelLeft);
+        Controls.Add(menuMain);
+
+        MainMenuStrip = menuMain;
 
         ApplyLocalization();
     }
@@ -42,10 +62,6 @@ partial class Launcher
     private void ApplyLocalization()
     {
         var loc = new ResourceManager("Launcher.Localization", typeof(Launcher).Assembly);
-
-        this.Text = loc.GetString("formTitle", CultureInfo.CurrentUICulture);
+        Text = loc.GetString("formTitle", CultureInfo.CurrentUICulture);
     }
-
-    #endregion
 }
-
