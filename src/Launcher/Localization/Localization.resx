@@ -5,4 +5,8 @@
     <value>Axiom Playground Launcher</value>
   </data>
 
+  <data name="errorConfigManagerSectionNotLoaded" xml:space="preserve">
+    <value>Config section '{0}' not loaded.</value>
+  </data>
+
 </root>

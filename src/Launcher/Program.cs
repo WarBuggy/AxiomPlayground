@@ -14,8 +14,9 @@ static class Program
         ConfigManager.Load();
 
         //Thread.CurrentThread.CurrentUICulture = new CultureInfo("es");
-
         ApplicationConfiguration.Initialize();
         Application.Run(new Launcher());
+
+        // ConfigManager.Set<LauncherConfig, int>(nameof(LauncherConfig.WindowHeight), 900);
     }
 }

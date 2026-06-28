@@ -61,7 +61,6 @@ partial class Launcher
 
     private void ApplyLocalization()
     {
-        var loc = new ResourceManager("Launcher.Localization", typeof(Launcher).Assembly);
-        Text = loc.GetString("formTitle", CultureInfo.CurrentUICulture);
+        Text = Shared.T("formTitle");
     }
 }
