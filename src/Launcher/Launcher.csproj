@@ -20,19 +20,19 @@
   <!-- Dev configuration -->
   <PropertyGroup Condition="'$(Configuration)'=='Dev'">
     <DefineConstants>DEV_ENV;TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Dev/Launcher/</OutputPath>
+    <OutputPath>../../../in254/bin/Dev/</OutputPath>
   </PropertyGroup>
 
   <!-- Release configuration -->
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DefineConstants>TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Release/Launcher/</OutputPath>
+    <OutputPath>../../../in254/bin/Release/</OutputPath>
   </PropertyGroup>
 
   <!-- Debug fallback (important!) -->
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Debug/Launcher/</OutputPath>
+    <OutputPath>../../../in254/bin/Debug/</OutputPath>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -42,6 +42,10 @@
   <ItemGroup>
     <EmbeddedResource Include="Localization\Localization.resx">
       <LogicalName>Launcher.Localization.resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
 

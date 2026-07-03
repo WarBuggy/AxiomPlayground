@@ -6,7 +6,39 @@
   </data>
 
   <data name="errorConfigManagerSectionNotLoaded" xml:space="preserve">
-    <value>Config section '{0}' not loaded.</value>
+    <value>[ConfigManager] Config section '{0}' not loaded.</value>
+  </data>
+
+  <data name="errorModSourcePolicyInvalidSource" xml:space="preserve">
+    <value>[ModSourcePolicy] No valid ModSource found in available sources.</value>
+  </data>
+
+  <data name="errorModGroupCannotAdd" xml:space="preserve">
+    <value>[ModGroup] Cannot add mod '{0}' to group '{1}'.</value>
+  </data>
+
+  <data name="errorModGroupNoSourceInGroup" xml:space="preserve">
+    <value>[ModGroup] No sources found in group '{0}'.</value>
+  </data>
+
+  <data name="errorModSelectionStoreFailToLoad" xml:space="preserve">
+    <value>[ModSelectionStore] Failed to load '{0}': {1}.</value>
+  </data>
+
+  <data name="errorModGroupNoModInGroup" xml:space="preserve">
+    <value>[ModGroup] Mod group '{0}' has no mods.</value>
+  </data>
+
+  <data name="errorModGroupInvalidSource" xml:space="preserve">
+    <value>Mod '{0}' does not contain source '{1}'.</value>
+  </data>
+
+  <data name="errorLauncherNoCore" xml:space="preserve">
+    <value>Required mod '{0}' is missing.</value>
+  </data>
+
+  <data name="errorModSelectionStoreFailToSave" xml:space="preserve">
+    <value>Failed to save mod selection to file.</value>
   </data>
 
 </root>

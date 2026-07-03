@@ -1,16 +1,12 @@
+using AxiomPlayground.Modding.Metadata.Model;
+
 namespace AxiomPlayground.Modding;
 
-public enum ModSource
+public sealed class Mod(ModInfo info, ModSource source, bool frameworkDebugEnabled = false)
 {
-    Steam,
-    Local
-}
-
-public sealed class Mod(string modId, ModSource source, bool frameworkDebugEnabled = false)
-{
-    public string ModId { get; set; } = modId;
-    public string DisplayName { get; set; } = modId;
-    public ModSource Source { get; set; } = source;
+    public ModInfo Info { get; } = info ?? throw new ArgumentNullException(nameof(info));
+    public string DisplayLabel { get; set; } = "";
+    public ModSource Source { get; } = source;
     public bool Enabled { get; set; } = true;
     private readonly Dictionary<string, object> _runtimeData = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _frameworkDebugEnabled = frameworkDebugEnabled;
@@ -63,6 +59,14 @@ public sealed class Mod(string modId, ModSource source, bool frameworkDebugEnabl
         _runtimeData.Clear();
     }
 
+    public string GetDisplayName(bool isInDuplicateGroup)
+    {
+        if (isInDuplicateGroup)
+            return $"({Source}) {Info.Name}";
+
+        return Info.Name;
+    }
+
     public bool RemoveRuntimeData(string actingModId, string key)
     {
         if (!_runtimeData.TryGetValue(key, out var existing))
@@ -78,6 +82,11 @@ public sealed class Mod(string modId, ModSource source, bool frameworkDebugEnabl
         );
 
         return true;
+    }
+
+    public override string ToString()
+    {
+        return $"{Info.Id} | {Info.Name} ({Source})";
     }
 
     #region FrameworkGameFlag.Debug

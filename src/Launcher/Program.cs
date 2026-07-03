@@ -1,6 +1,5 @@
 namespace Launcher;
 
-using System.Globalization;
 using global::Launcher.Config;
 
 static class Program

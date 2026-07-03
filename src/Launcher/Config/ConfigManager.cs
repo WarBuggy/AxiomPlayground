@@ -11,7 +11,7 @@ public static class ConfigManager
     public static LauncherConfig Launcher { get; private set; } = new();
 
     private static readonly string Path =
-        System.IO.Path.Combine(AppContext.BaseDirectory, "..", "launcherConfig.json");
+        System.IO.Path.Combine(AppContext.BaseDirectory, "launcherConfig.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
