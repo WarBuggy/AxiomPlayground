@@ -4,7 +4,7 @@ namespace Launcher.Controls;
 
 partial class ModAvailableListControl
 {
-    private System.ComponentModel.IContainer components = null;
+    private System.ComponentModel.Container components = null;
 
     private Panel pnlContainer;
 
