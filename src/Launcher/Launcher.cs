@@ -69,6 +69,7 @@ public partial class Launcher : Form
         }
 
         ModSelectionStore.Save(states);
+        SaveSelectedModList();
     }
 
     private void RenderModGroups(IEnumerable<ModGroup> groups)
@@ -122,5 +123,12 @@ public partial class Launcher : Form
             _groups.ToDictionary(
                 group => group.ModId,
                 StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SaveSelectedModList()
+    {
+        var selectedMods = _selectedListControl.GetSelectedModsInDisplayOrder();
+
+        ModSelectedStore.Save(selectedMods);
     }
 }

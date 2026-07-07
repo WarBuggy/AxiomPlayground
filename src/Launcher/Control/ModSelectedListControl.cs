@@ -73,4 +73,11 @@ public partial class ModSelectedListControl : UserControl
 
         _entries.Add(group.ModId, control);
     }
+
+    public IReadOnlyList<ModSelectedState> GetSelectedModsInDisplayOrder()
+    {
+        return [.. pnlContainer.Controls
+            .OfType<ModSelectedEntryControl>()
+            .Select(c => c.Entry)];
+    }
 }
