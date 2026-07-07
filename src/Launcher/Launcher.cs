@@ -16,7 +16,7 @@ public partial class Launcher : Form
         Shown += Launcher_Shown;
 
         _selectedListControl.EntryRemoveRequest += ModRemoveRequested;
-        _availableListControl.OnModSelectionChanged += ModSelectionChanged;
+        _availableListControl.OnModSelectionChanged += AvailableModSelectionChanged;
     }
 
     private void Launcher_Shown(object? sender, EventArgs e)
@@ -36,9 +36,7 @@ public partial class Launcher : Form
             group.ResolveSelectionState(state);
         }
 
-        // NOTE: must be rebuilt if mod list changes
-        _groupLookup =
-            _groups.ToDictionary(group => group.ModId, StringComparer.OrdinalIgnoreCase);
+        BuildGroupLookup();
 
         RenderModGroups(_groups);
 
@@ -54,6 +52,9 @@ public partial class Launcher : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         base.OnFormClosing(e);
+
+        _selectedListControl.EntryRemoveRequest -= ModRemoveRequested;
+        _availableListControl.OnModSelectionChanged -= AvailableModSelectionChanged;
 
         var states = new Dictionary<string, ModSelectionState>(StringComparer.OrdinalIgnoreCase);
 
@@ -89,7 +90,7 @@ public partial class Launcher : Form
         ApplyModSelection(modId, false);
     }
 
-    private void ModSelectionChanged(string modId, bool isEnabled)
+    private void AvailableModSelectionChanged(string modId, bool isEnabled)
     {
         ApplyModSelection(modId, isEnabled);
     }
@@ -99,7 +100,7 @@ public partial class Launcher : Form
         if (!_groupLookup.TryGetValue(modId, out var group))
             return;
 
-        if (!enabled && !group.CanBeDisabled)
+        if (!group.CanBeDisabled && !enabled)
             return;
 
         if (group.IsEnabled == enabled && !forced)
@@ -113,5 +114,13 @@ public partial class Launcher : Form
             _selectedListControl.Add(group);
         else
             _selectedListControl.Remove(group.ModId);
+    }
+
+    private void BuildGroupLookup()
+    {
+        _groupLookup =
+            _groups.ToDictionary(
+                group => group.ModId,
+                StringComparer.OrdinalIgnoreCase);
     }
 }
