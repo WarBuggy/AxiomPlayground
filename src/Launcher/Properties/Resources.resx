@@ -31,4 +31,19 @@
     <value>..\Icon\icons8-folder-96.png;System.Drawing.Bitmap, System.Drawing</value>
   </data>
 
+  <!-- Remove icon -->
+  <data name="RemoveIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\icons8-remove-90.png;System.Drawing.Bitmap, System.Drawing</value>
+  </data>
+
+  <!-- Right arrow icon -->
+  <data name="RightArrowIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\icons8-right-arrow-64.png;System.Drawing.Bitmap, System.Drawing</value>
+  </data>
+
+  <!-- Blank icon -->
+  <data name="BlankIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\blank.png;System.Drawing.Bitmap, System.Drawing</value>
+  </data>
+
 </root>

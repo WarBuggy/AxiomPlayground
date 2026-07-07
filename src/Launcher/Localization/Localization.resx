@@ -17,6 +17,14 @@
     <value>[ModGroup] Cannot add mod '{0}' to group '{1}'.</value>
   </data>
 
+  <data name="errorModGroupLocalOnly" xml:space="preserve">
+    <value>[ModGroup] Group '{0}' only allows Local mods.</value>
+  </data>
+
+  <data name="errorModGroupDuplicateSource" xml:space="preserve">
+    <value>[ModGroup] Group '{0}' already contains a mod from source '{1}'.</value>
+  </data>
+
   <data name="errorModGroupNoSourceInGroup" xml:space="preserve">
     <value>[ModGroup] No sources found in group '{0}'.</value>
   </data>

@@ -15,7 +15,9 @@ public static class ModSelectionStore
     public static Dictionary<string, ModSelectionState> Load()
     {
         if (!File.Exists(FilePath))
+        {
             return new Dictionary<string, ModSelectionState>(StringComparer.OrdinalIgnoreCase);
+        }
 
         try
         {

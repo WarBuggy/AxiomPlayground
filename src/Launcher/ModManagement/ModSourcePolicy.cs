@@ -1,6 +1,7 @@
 namespace Launcher.ModManagement;
 
 using AxiomPlayground.Modding;
+using global::Launcher.Properties;
 
 public static class ModSourcePolicy
 {
@@ -61,5 +62,15 @@ public static class ModSourcePolicy
     public static bool IsDefault(ModSource source, IEnumerable<ModSource> availableSources)
     {
         return GetDefaultSource(availableSources) == source;
+    }
+
+    public static Image GetSourceIcon(ModSource source)
+    {
+        return source switch
+        {
+            ModSource.Steam => AppResources.SteamIcon,
+            ModSource.Local => AppResources.LocalIcon,
+            _ => AppResources.LocalIcon
+        };
     }
 }

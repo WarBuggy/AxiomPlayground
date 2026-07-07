@@ -1,6 +1,8 @@
 ﻿namespace Launcher;
 
 using global::Launcher.Config;
+using global::Launcher.Controls;
+using global::Launcher.Properties;
 
 partial class Launcher
 {
@@ -10,12 +12,13 @@ partial class Launcher
 
     // Main layout
     private Panel panelLeft;
-    private Panel panelWorking;
-
+    private TableLayoutPanel panelWorking;
     // Working area
-    private Panel panelAvailableMods;
-    private Panel panelSelectionButtons;
-    private Panel panelSelectedMods;
+    private TableLayoutPanel panelControlButtons;
+    private FlowLayoutPanel pnlButtonStack;
+    private Button btnSelect;
+    private ModSelectedListControl _selectedListControl = null!;
+    private ModAvailableListControl _availableListControl = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -46,15 +49,8 @@ partial class Launcher
         menuMain = new MenuStrip();
 
         panelLeft = new Panel();
-        panelWorking = new Panel();
-
-        panelAvailableMods = new Panel();
-        panelSelectionButtons = new Panel();
-        panelSelectedMods = new Panel();
-
-        var panelMainDivider = new Panel();
-        var panelButtonDividerLeft = new Panel();
-        var panelButtonDividerRight = new Panel();
+        panelWorking = new TableLayoutPanel();
+        panelControlButtons = new TableLayoutPanel();
 
         //
         // panelLeft
@@ -63,63 +59,91 @@ partial class Launcher
         panelLeft.Width = ConfigManager.Launcher.LeftPanelWidth;
 
         //
-        // panelMainDivider
+        // _availableListControl
         //
-        panelMainDivider.Dock = DockStyle.Left;
-        panelMainDivider.Width = 1;
-        panelMainDivider.BackColor = Color.LightGray;
+        _availableListControl = new ModAvailableListControl();
+        _availableListControl.Dock = DockStyle.Fill;
+
+        //
+        // btnSelect
+        //
+        btnSelect = new Button();
+        btnSelect.Width = 32;
+        btnSelect.Height = 32;
+        btnSelect.Text = string.Empty;
+        btnSelect.BackgroundImage = AppResources.RightArrowIcon;
+        btnSelect.BackgroundImageLayout = ImageLayout.Zoom;
+        btnSelect.TextImageRelation = TextImageRelation.Overlay;
+        btnSelect.FlatStyle = FlatStyle.Flat;
+        btnSelect.TabStop = false;
+        btnSelect.Cursor = Cursors.Hand;
+        btnSelect.FlatAppearance.MouseDownBackColor = Color.LightGray;
+        btnSelect.FlatAppearance.MouseOverBackColor = Color.Gainsboro;
+        btnSelect.FlatAppearance.BorderSize = 0;
+        btnSelect.BackColor = Color.Transparent;
+
+        //
+        // pnlButtonStack
+        //
+        pnlButtonStack = new FlowLayoutPanel();
+        pnlButtonStack.FlowDirection = FlowDirection.TopDown;
+        pnlButtonStack.WrapContents = false;
+        pnlButtonStack.AutoSize = true;
+        pnlButtonStack.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        pnlButtonStack.Anchor = AnchorStyles.None;
+        pnlButtonStack.Dock = DockStyle.None;
+
+        pnlButtonStack.Controls.Add(btnSelect);
+
+        //
+        // panelSelectionButtons
+        //
+        panelControlButtons.Dock = DockStyle.Left;
+        panelControlButtons.Width = 80;
+        panelControlButtons.ColumnCount = 1;
+        panelControlButtons.RowCount = 3;
+        panelControlButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+
+        panelControlButtons.Controls.Add(pnlButtonStack, 0, 1);
+
+        _selectedListControl = new ModSelectedListControl();
+        _selectedListControl.Dock = DockStyle.Fill;
+
+        var panelButtonDividerLeft = new Panel();
+        var panelButtonDividerRight = new Panel();
+        panelButtonDividerLeft.BackColor = Color.LightGray;
+        panelButtonDividerRight.BackColor = Color.LightGray;
+        panelButtonDividerLeft.Dock = DockStyle.Fill;
+        panelButtonDividerRight.Dock = DockStyle.Fill;
 
         //
         // panelWorking
         //
         panelWorking.Dock = DockStyle.Fill;
+        panelWorking.ColumnCount = 5;
+        panelWorking.RowCount = 1;
+        panelWorking.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ConfigManager.Launcher.AvailablePanelWidth));
+        panelWorking.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));   // divider
+        panelWorking.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80F));  // buttons
+        panelWorking.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));   // divider
+        panelWorking.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));  // selected
 
-        //
-        // panelAvailableMods
-        //
-        panelAvailableMods.Dock = DockStyle.Left;
-        panelAvailableMods.AutoScroll = true;
-        panelAvailableMods.Width = 450;
+        panelWorking.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        //
-        // panelButtonDividerLeft
-        //
-        panelButtonDividerLeft.Dock = DockStyle.Left;
-        panelButtonDividerLeft.Width = 1;
-        panelButtonDividerLeft.BackColor = Color.LightGray;
-
-        //
-        // panelSelectionButtons
-        //
-        panelSelectionButtons.Dock = DockStyle.Left;
-        panelSelectionButtons.Width = 80;
-
-        //
-        // panelButtonDividerRight
-        //
-        panelButtonDividerRight.Dock = DockStyle.Left;
-        panelButtonDividerRight.Width = 1;
-        panelButtonDividerRight.BackColor = Color.LightGray;
-
-        //
-        // panelSelectedMods
-        //
-        panelSelectedMods.Dock = DockStyle.Fill;
-
-        //
-        // Build working area
-        //
-        panelWorking.Controls.Add(panelSelectedMods);
-        panelWorking.Controls.Add(panelButtonDividerRight);
-        panelWorking.Controls.Add(panelSelectionButtons);
-        panelWorking.Controls.Add(panelButtonDividerLeft);
-        panelWorking.Controls.Add(panelAvailableMods);
+        panelWorking.Controls.Add(_availableListControl, 0, 0);
+        panelWorking.Controls.Add(panelButtonDividerLeft, 1, 0);
+        panelWorking.Controls.Add(panelControlButtons, 2, 0);
+        panelWorking.Controls.Add(panelButtonDividerRight, 3, 0);
+        panelWorking.Controls.Add(_selectedListControl, 4, 0);
 
         //
         // Build main window
         //
         Controls.Add(panelWorking);
-        Controls.Add(panelMainDivider);
+        Controls.Add(panelWorking);
         Controls.Add(panelLeft);
         Controls.Add(menuMain);
 

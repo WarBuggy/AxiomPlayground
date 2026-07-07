@@ -1,12 +1,13 @@
 using AxiomPlayground.Modding.Discovery;
 using Launcher.ModManagement;
-using Launcher.Controls;
 
 namespace Launcher;
 
 public partial class Launcher : Form
 {
     private List<ModGroup> _groups = [];
+    private Dictionary<string, ModGroup> _groupLookup =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public Launcher()
     {
@@ -14,10 +15,8 @@ public partial class Launcher : Form
 
         Shown += Launcher_Shown;
 
-        panelAvailableMods.Resize += (_, _) =>
-        {
-            RelayoutModGroups();
-        };
+        _selectedListControl.EntryRemoveRequest += ModRemoveRequested;
+        _availableListControl.OnModSelectionChanged += ModSelectionChanged;
     }
 
     private void Launcher_Shown(object? sender, EventArgs e)
@@ -29,41 +28,27 @@ public partial class Launcher : Form
         _groups = ModGroupBuilder.Build(mods);
         ValidateCoreExists(_groups);
         _groups = ModGroupOrdering.Order(_groups);
-        // Console.WriteLine("=== Mod Groups ===");
-        // foreach (var group in groups)
-        // {
-        //     Console.WriteLine($"Group: {group.ModId}");
-
-        //     foreach (var mod in group.Mods)
-        //     {
-        //         Console.WriteLine($"    {mod.Info.Name} ({mod.Source})");
-        //     }
-        // }
-        // Console.WriteLine();
-        // Console.WriteLine("=== Saved Mod Selection States ===");
 
         var stateLookup = ModSelectionStore.Load();
-        // if (stateLookup.Count == 0)
-        // {
-        //     Console.WriteLine("(none)");
-        // }
-        // else
-        // {
-        //     foreach (var (id, state) in stateLookup)
-        //     {
-        //         Console.WriteLine(
-        //             $"ModId={id}, " +
-        //             $"Source={state.SelectedSource}, " +
-        //             $"Enabled={state.IsEnabled}");
-        //     }
-        // }
         foreach (var group in _groups)
         {
             stateLookup.TryGetValue(group.ModId, out var state);
-            group.ResolveSelection(state);
+            group.ResolveSelectionState(state);
         }
 
+        // NOTE: must be rebuilt if mod list changes
+        _groupLookup =
+            _groups.ToDictionary(group => group.ModId, StringComparer.OrdinalIgnoreCase);
+
         RenderModGroups(_groups);
+
+        foreach (var group in _groups)
+        {
+            if (!group.IsEnabled)
+                continue;
+
+            ApplyModSelection(group.ModId, group.IsEnabled, true);
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -87,51 +72,46 @@ public partial class Launcher : Form
 
     private void RenderModGroups(IEnumerable<ModGroup> groups)
     {
-        panelAvailableMods.SuspendLayout();
-        panelAvailableMods.Controls.Clear();
-
-        int y = 0;
-        int width = panelAvailableMods.ClientSize.Width;
-
-        foreach (var group in groups)
-        {
-            var control = new ModGroupControl();
-            control.Bind(group);
-
-            control.Width = width;
-            control.Location = new Point(0, y);
-            control.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-
-            panelAvailableMods.Controls.Add(control);
-
-            y += control.Height;
-        }
-
-        panelAvailableMods.ResumeLayout();
+        _availableListControl.Bind(groups);
     }
 
     private static void ValidateCoreExists(IEnumerable<ModGroup> groups)
     {
-        bool hasCore = groups.Any(g =>
-            g.ModId.Equals(ModSystemPolicy.CORE_MOD_ID, StringComparison.OrdinalIgnoreCase));
-
-        if (!hasCore)
+        if (!groups.Any(g => g.IsCore))
         {
-            throw new InvalidOperationException(Shared.T("errorLauncherNoCore", ModSystemPolicy.CORE_MOD_ID));
+            throw new InvalidOperationException(
+                Shared.T("errorLauncherNoCore", ModSystemPolicy.CORE_MOD_ID));
         }
     }
 
-    private void RelayoutModGroups()
+    private void ModRemoveRequested(string modId)
     {
-        int y = 0;
-        int width = panelAvailableMods.ClientSize.Width;
+        ApplyModSelection(modId, false);
+    }
 
-        foreach (Control c in panelAvailableMods.Controls)
-        {
-            c.Width = width;
-            c.Location = new Point(0, y);
+    private void ModSelectionChanged(string modId, bool isEnabled)
+    {
+        ApplyModSelection(modId, isEnabled);
+    }
 
-            y += c.Height;
-        }
+    private void ApplyModSelection(string modId, bool enabled, bool forced = false)
+    {
+        if (!_groupLookup.TryGetValue(modId, out var group))
+            return;
+
+        if (!enabled && !group.CanBeDisabled)
+            return;
+
+        if (group.IsEnabled == enabled && !forced)
+            return;
+
+        group.IsEnabled = enabled;
+
+        _availableListControl.SetStatusForEntryOfGroup(group.ModId);
+
+        if (enabled)
+            _selectedListControl.Add(group);
+        else
+            _selectedListControl.Remove(group.ModId);
     }
 }
