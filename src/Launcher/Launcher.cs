@@ -28,25 +28,11 @@ public partial class Launcher : Form
         _groups = ModGroupBuilder.Build(mods);
         ValidateCoreExists(_groups);
         _groups = ModGroupOrdering.Order(_groups);
-
-        var stateLookup = ModSelectionStore.Load();
-        foreach (var group in _groups)
-        {
-            stateLookup.TryGetValue(group.ModId, out var state);
-            group.ResolveSelectionState(state);
-        }
-
         BuildGroupLookup();
 
         RenderModGroups(_groups);
 
-        foreach (var group in _groups)
-        {
-            if (!group.IsEnabled)
-                continue;
-
-            ApplyModSelection(group.ModId, group.IsEnabled, true);
-        }
+        LoadLauncherState();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -64,7 +50,6 @@ public partial class Launcher : Form
             {
                 ModId = group.ModId,
                 SelectedSource = group.SelectedSource,
-                IsEnabled = group.IsEnabled
             };
         }
 
@@ -130,5 +115,86 @@ public partial class Launcher : Form
         var selectedMods = _selectedListControl.GetSelectedModsInDisplayOrder();
 
         ModSelectedStore.Save(selectedMods);
+    }
+
+    private void ClearSelectedMods()
+    {
+        foreach (var group in _groups)
+        {
+            if (!group.IsEnabled)
+                continue;
+
+            ApplyModSelection(group.ModId, false);
+        }
+    }
+
+    private void LoadSelectedModList(List<ModSelectedState> states)
+    {
+        // Disable all currently enabled mods
+        ClearSelectedMods();
+
+        // Restore saved order
+        foreach (var selected in states.OrderBy(x => x.Order))
+        {
+            if (!_groupLookup.TryGetValue(selected.ModId, out var group))
+                continue;
+
+            // Restore source
+            group.SetSelectedSource(selected.Source);
+
+            _availableListControl.SetSourceForEntryOfGroup(
+                selected.ModId,
+                selected.Source);
+
+            // Enable mod and add to selected list
+            ApplyModSelection(
+                selected.ModId,
+                true,
+                true);
+        }
+    }
+
+    private void LoadLauncherState()
+    {
+        var selectionStates = ModSelectionStore.Load();
+
+        var selectedStates = ModSelectedStore.Load();
+
+        var selectedLookup =
+            selectedStates.ToDictionary(
+                s => s.ModId,
+                StringComparer.OrdinalIgnoreCase);
+
+        // First apply saved source preferences.
+        foreach (var group in _groups)
+        {
+            selectionStates.TryGetValue(group.ModId, out var state);
+
+            group.ResolveSelectionState(state);
+        }
+
+        // Selected list has priority.
+        foreach (var selected in selectedStates)
+        {
+            if (!_groupLookup.TryGetValue(selected.ModId, out var group))
+                continue;
+
+            group.SetSelectedSource(selected.Source);
+        }
+
+        // Reflect selected list into ModGroup state.
+        foreach (var group in _groups)
+        {
+            if (selectedLookup.ContainsKey(group.ModId))
+                group.IsEnabled = true;
+            else
+            {
+                group.IsEnabled = false;
+                ApplyModSelection(group.ModId, group.IsEnabled, true);
+            }
+        }
+
+        // rebuild selected panel.
+        LoadSelectedModList(selectedStates);
     }
 }

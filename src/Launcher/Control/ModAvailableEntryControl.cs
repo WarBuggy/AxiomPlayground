@@ -1,3 +1,4 @@
+using AxiomPlayground.Modding;
 using Launcher.ModManagement;
 using Launcher.Properties;
 
@@ -146,5 +147,12 @@ public partial class ModAvailableEntryControl : UserControl
         {
             picExpand.Click += PicExpand_Click;
         }
+    }
+
+    public void SetSelectedSource(ModSource source)
+    {
+        _group.SetSelectedSource(source);
+
+        UpdateSourceIcon();
     }
 }

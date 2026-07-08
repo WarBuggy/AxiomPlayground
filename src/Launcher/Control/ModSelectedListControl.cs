@@ -78,6 +78,11 @@ public partial class ModSelectedListControl : UserControl
     {
         return [.. pnlContainer.Controls
             .OfType<ModSelectedEntryControl>()
-            .Select(c => c.Entry)];
+            .Reverse()
+            .Select((control, index) =>
+            {
+                control.Entry.Order = index;
+                return control.Entry;
+            })];
     }
 }

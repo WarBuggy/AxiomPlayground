@@ -66,14 +66,12 @@ public sealed class ModGroup
         if (IsLocalOnly && orderedSources.Contains(ModSource.Local))
         {
             SelectedSource = ModSource.Local;
-            IsEnabled = state?.IsEnabled ?? IsEnabled;
             return;
         }
 
         if (state != null && orderedSources.Contains(state.SelectedSource))
         {
             SelectedSource = state.SelectedSource;
-            IsEnabled = state.IsEnabled;
         }
         else
         {

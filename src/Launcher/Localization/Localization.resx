@@ -38,15 +38,19 @@
   </data>
 
   <data name="errorModGroupInvalidSource" xml:space="preserve">
-    <value>Mod '{0}' does not contain source '{1}'.</value>
+    <value>[ModGroup] Mod '{0}' does not contain source '{1}'.</value>
   </data>
 
   <data name="errorLauncherNoCore" xml:space="preserve">
-    <value>Required mod '{0}' is missing.</value>
+    <value>[Launcher] Required mod '{0}' is missing.</value>
   </data>
 
   <data name="errorModSelectionStoreFailToSave" xml:space="preserve">
-    <value>Failed to save mod selection to file.</value>
+    <value>[ModSelectionStore] Failed to save mod selection to file.</value>
+  </data>
+
+  <data name="errorModSelectedStoreFailToLoad" xml:space="preserve">
+    <value>[ModSelectedStore] Failed to load selected mod list '{0}': {1}</value>
   </data>
 
 </root>

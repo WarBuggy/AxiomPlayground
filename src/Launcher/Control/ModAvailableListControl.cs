@@ -1,3 +1,4 @@
+using AxiomPlayground.Modding;
 using Launcher.ModManagement;
 
 namespace Launcher.Controls;
@@ -39,5 +40,13 @@ public partial class ModAvailableListControl : UserControl
     {
         _entries.TryGetValue(modId, out var entry);
         entry?.SetActiveState();
+    }
+
+    public void SetSourceForEntryOfGroup(string modId, ModSource source)
+    {
+        if (!_entries.TryGetValue(modId, out var entry))
+            return;
+
+        entry.SetSelectedSource(source);
     }
 }
