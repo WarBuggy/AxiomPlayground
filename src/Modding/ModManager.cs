@@ -16,7 +16,36 @@ public sealed class ModManager
 
     private static List<ModSelectedState> LoadSelectedModList()
     {
-        return [.. ModSelectedStore.Load(ModSystemPolicy.SelectedModFilePath).OrderBy(s => s.Order)];
+        var selectedMods =
+            ModSelectedStore.Load(ModSystemPolicy.SelectedModFilePath);
+
+        return NormalizeSelectedModList(selectedMods);
+    }
+
+    private static List<ModSelectedState> NormalizeSelectedModList(
+        IEnumerable<ModSelectedState> states)
+    {
+        var result = states
+            .Where(s => !s.ModId.Equals(
+                ModSystemPolicy.CORE_MOD_ID,
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Core is always first and always Local
+        result.Insert(
+            0,
+            new ModSelectedState(
+                ModSystemPolicy.CORE_MOD_ID,
+                ModSource.Local,
+                0));
+
+        // Rebuild order values after insertion/removal
+        for (int i = 0; i < result.Count; i++)
+        {
+            result[i].Order = i;
+        }
+
+        return result;
     }
 
     public void LoadModsFromSelection()
