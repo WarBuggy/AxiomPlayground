@@ -3,6 +3,7 @@ using AxiomPlayground.Modding;
 using AxiomPlayground.Shared;
 using Launcher.ModManagement;
 using System.Diagnostics;
+using Launcher.Config;
 
 namespace Launcher;
 
@@ -205,9 +206,8 @@ public partial class Launcher : Form
     {
         try
         {
-            string gamePath = Path.Combine(
-                AppContext.BaseDirectory,
-                "in254.exe");
+            string gamePath = Path.Combine(AppContext.BaseDirectory,
+                ConfigManager.Launcher.ExecutableFile);
 
             Process.Start(new ProcessStartInfo
             {
