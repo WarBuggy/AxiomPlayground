@@ -18,22 +18,19 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
-  <!-- Dev configuration -->
   <PropertyGroup Condition="'$(Configuration)'=='Dev'">
     <DefineConstants>DEV_ENV;TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Dev/</OutputPath>
+    <OutputPath>$(GameOutputPath)/Dev/</OutputPath>
   </PropertyGroup>
 
-  <!-- Release configuration -->
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DefineConstants>TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Release/</OutputPath>
+    <OutputPath>$(GameOutputPath)/Release/</OutputPath>
   </PropertyGroup>
 
-  <!-- Debug fallback (important!) -->
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <OutputPath>../../../in254/bin/Debug/</OutputPath>
+    <OutputPath>$(GameOutputPath)/Debug/</OutputPath>
   </PropertyGroup>
 
   <PropertyGroup>

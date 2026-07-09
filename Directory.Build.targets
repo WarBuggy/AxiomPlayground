@@ -1,0 +1,7 @@
+<Project>
+
+    <Target Name="ValidateGameOutputPath" BeforeTargets="Build">
+        <Error Condition="'$(GameOutputPath)' == ''" Text="GameOutputPath is missing. Create AxiomPlayground/Directory.Build.props for this game." />
+    </Target>
+
+</Project>

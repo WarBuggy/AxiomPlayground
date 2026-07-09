@@ -9,6 +9,6 @@ public class LauncherConfig : BaseConfig
     public int LeftPanelWidth { get; set; } = 250;
     public int AvailablePanelWidth { get; set; } = 400;
     public bool StartMaximized { get; set; } = false;
-    public string ExecutableFile { get; set; } = "in254.exe";
+    public string ExecutableFile { get; set; } = "PP.exe";
     public override string GetSectionName() => "launcher";
 }

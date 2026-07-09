@@ -22,7 +22,7 @@ public static class ModSourcePathProvider
         EnsureLoaded();
 
         if (_paths!.TryGetValue(source, out var path))
-            return path;
+            return Path.Combine(AppContext.BaseDirectory, path);
 
         throw new InvalidOperationException(
             $"No path configured for mod source {source}");
