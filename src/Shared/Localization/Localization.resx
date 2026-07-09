@@ -53,4 +53,20 @@
     <value>[ModSelectedStore] Failed to load selected mod list '{0}': {1}</value>
   </data>
 
+  <data name="errorModDiscoverFolderNotFound" xml:space="preserve">
+    <value>[ModDiscover] Mod source folder '{0}' was not found.</value>
+  </data>
+
+  <data name="errorModDiscoverSkippingFolder" xml:space="preserve">
+    <value>[ModDiscover] Skipping mod folder '{0}': {1}</value>
+  </data>
+
+  <data name="errorModDiscoverSelectedModNotFound" xml:space="preserve">
+    <value>[ModDiscover] The selected mod '{0}' could not be found in the configured {1} mod directory.</value>
+  </data>
+
+  <data name="errorModDiscoverSelectedModIdMismatch" xml:space="preserve">
+    <value>[ModDiscover] The selected mod '{0}' does not match the mod metadata. The folder contains mod '{1}' instead.</value>
+  </data>
+
 </root>

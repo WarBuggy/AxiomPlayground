@@ -1,3 +1,4 @@
+using AxiomPlayground.Shared;
 using AxiomPlayground.Modding;
 using Launcher.Properties;
 
@@ -5,16 +6,10 @@ namespace Launcher.ModManagement;
 
 public static class ModSourceIconCache
 {
-    private sealed class IconPair
+    private sealed class IconPair(Image normal)
     {
-        public Image Normal { get; }
-        public Image Disabled { get; }
-
-        public IconPair(Image normal)
-        {
-            Normal = normal;
-            Disabled = ToGrayscale(normal);
-        }
+        public Image Normal { get; } = normal;
+        public Image Disabled { get; } = ToGrayscale(normal);
     }
 
     private static readonly Dictionary<ModSource, IconPair> _icons = new()

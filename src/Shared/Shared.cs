@@ -1,12 +1,12 @@
-namespace Launcher;
-
 using System.Globalization;
 using System.Resources;
+
+namespace AxiomPlayground.Shared;
 
 public static class Shared
 {
     private static readonly ResourceManager Loc =
-        new("Launcher.Localization", typeof(Shared).Assembly);
+        new("AxiomPlayground.Shared.Localization", typeof(Shared).Assembly);
 
     public static string T(string key)
     {

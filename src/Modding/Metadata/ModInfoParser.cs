@@ -7,6 +7,8 @@ namespace AxiomPlayground.Modding.Metadata;
 public static class ModInfoParser
 {
     private const string INFO_FILE_NAME = "info.json";
+    private const string DESCRIPTION_FILE = "desc.md";
+    private const string PATCHES_FILE = "patches.md";
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true

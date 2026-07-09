@@ -1,7 +1,7 @@
-namespace Launcher.ModManagement;
-
-using AxiomPlayground.Modding;
+using AxiomPlayground.Shared;
 using global::Launcher.Properties;
+
+namespace Launcher.ModManagement;
 
 public static class ModSourcePolicy
 {

@@ -1,3 +1,4 @@
+using AxiomPlayground.Shared;
 using AxiomPlayground.Modding;
 
 namespace Launcher.ModManagement;
@@ -32,22 +33,16 @@ public sealed class ModGroup
         ArgumentNullException.ThrowIfNull(mod);
 
         if (!mod.Info.Id.Equals(ModId, StringComparison.OrdinalIgnoreCase))
-        {
             throw new ArgumentException(
                 Shared.T("errorModGroupCannotAdd", mod.Info.Id, ModId));
-        }
 
         if (IsLocalOnly && mod.Source != ModSource.Local)
-        {
             throw new ArgumentException(
                 Shared.T("errorModGroupLocalOnly", ModId));
-        }
 
         if (_mods.Any(m => m.Source == mod.Source))
-        {
             throw new ArgumentException(
                 Shared.T("errorModGroupDuplicateSource", ModId, mod.Source));
-        }
 
         _mods.Add(mod);
     }
@@ -58,10 +53,8 @@ public sealed class ModGroup
             ModSourcePolicy.Sort(_mods.Select(m => m.Source).Distinct()).ToList();
 
         if (orderedSources.Count == 0)
-        {
             throw new InvalidOperationException(
                 Shared.T("errorModGroupNoSourceInGroup", ModId));
-        }
 
         if (IsLocalOnly && orderedSources.Contains(ModSource.Local))
         {
@@ -70,13 +63,9 @@ public sealed class ModGroup
         }
 
         if (state != null && orderedSources.Contains(state.SelectedSource))
-        {
             SelectedSource = state.SelectedSource;
-        }
         else
-        {
             SelectedSource = orderedSources[0];
-        }
     }
 
     public void SetSelectedSource(ModSource source)

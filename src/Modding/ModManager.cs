@@ -1,336 +1,195 @@
-// using AxiomPlayground.GameFlag;
-// using AxiomPlayground.Modding.Metadata;
-
-// namespace AxiomPlayground.Modding;
-
-// public sealed class ModManager
-// {
-//     private const string INFO_FILE = "info.json";
-//     private const string DESCRIPTION_FILE = "desc.md";
-//     private const string PATCHES_FILE = "patches.md";
-
-//     private static readonly ModManager _instance = new();
-//     public static ModManager Instance => _instance;
-// public const string CORE_MOD_ID = "Core";
-// // Order matters: earlier mods load first and can be overridden by later ones
-// private static readonly List<string> RESERVED_MOD_IDS =
-//     [
-//         CORE_MOD_ID,
-//         "DLC1",
-//         "DLC2",
-//         "DLC3",
-//     ];
-//     // Single dictionary: ModSource -> (BasePath, Mods dictionary)
-//     private readonly Dictionary<ModSource, (string Path, Dictionary<string, Mod> Mods)> _mods
-//         = new()
-//     {
-//         { ModSource.Steam, ("Steam/workshop/content/gameId/", new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase)) },
-//         { ModSource.Local, ("Mods/", new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase)) }
-//     };
-
-//     private readonly List<Mod> _finalModList = [];
-//     public List<Mod> FinalModList => _finalModList;
-//     private readonly Dictionary<string, string> _finalModFolderPathCache = new(StringComparer.OrdinalIgnoreCase);
-
-//     private ModManager() { }
-
-//     /// <summary>
-//     /// Scan both Steam and Local folders, reconcile duplicates, and print discovered mods.
-//     /// </summary>
-//     public void DiscoverMods()
-//     {
-//         ScanFolder(ModSource.Steam);
-//         ScanFolder(ModSource.Local);
-//         EnforceReservedModConstraints();
-//         ReconcileDuplicates();
-//     }
-
-//     /// <summary>
-//     /// Scan a single folder for mods of the given source.
-//     /// </summary>
-//     private void ScanFolder(ModSource source)
-//     {
-//         if (!_mods.TryGetValue(source, out var tuple))
-//             throw new ArgumentException($"[ModManager] Unknown mod source: {source}.");
-
-//         string folderPath = tuple.Path;
-//         var targetDict = tuple.Mods;
-
-//         targetDict.Clear();
-
-//         if (!Directory.Exists(folderPath))
-//             throw new ArgumentException($"[ModManager] Mod folder not found: {folderPath}.");
-
-//         foreach (var modDir in Directory.GetDirectories(folderPath))
-//         {
-//             try
-//             {
-//                 var info = ModMetadataLoader.LoadInfo(modDir);
-
-//                 var mod = new Mod(info, source);
-
-//                 targetDict[mod.Info.Id] = mod;
-//             }
-//             catch (Exception ex)
-//             {
-//                 Console.WriteLine(
-//                     $"[ModManager] Skipping mod folder '{modDir}': {ex.Message}");
-//             }
-//         }
-//     }
-
-//     private static bool IsValidModFolder(string modFolder)
-//     {
-//         string modId = Path.GetFileName(modFolder);
-
-//         string[] requiredFiles = [INFO_FILE, DESCRIPTION_FILE, PATCHES_FILE];
-
-//         foreach (string file in requiredFiles)
-//         {
-//             string path = Path.Combine(modFolder, file);
-
-//             if (!File.Exists(path))
-//             {
-//                 Console.WriteLine(
-//                     $"[ModManager] Ignoring '{modId}' because required file '{file}' is missing.");
-//                 return false;
-//             }
-//         }
-
-//         return true;
-//     }
-
-//     /// <summary>
-//     /// Reconcile mods that exist in both Steam and Local folders by modifying DisplayName.
-//     /// </summary>
-//     private void ReconcileDuplicates()
-//     {
-//         var steamMods = _mods[ModSource.Steam].Mods;
-//         var localMods = _mods[ModSource.Local].Mods;
-
-//         foreach (var modId in steamMods.Keys)
-//         {
-//             if (localMods.TryGetValue(modId, out Mod? localMod))
-//             {
-//                 steamMods[modId].DisplayLabel = $"{modId} (Steam)";
-//                 localMod.DisplayLabel = $"{modId} (Local)";
-//             }
-//         }
-//     }
-
-//     /// <summary>
-//     /// Compute the full folder path for a given mod.
-//     /// </summary>
-//     public string GetModFolderPath(Mod mod)
-//     {
-//         if (!_mods.TryGetValue(mod.Source, out var tuple))
-//             throw new ArgumentException($"[ModManager] Unknown mod source: {mod.Source}.");
-
-//         return Path.Combine(tuple.Path, mod.ModId);
-//     }
-
-//     public string GetModFolderPath(string modId)
-//     {
-//         if (_finalModFolderPathCache.TryGetValue(modId, out var path))
-//             return path;
-
-//         throw new ArgumentException($"[ModManager] Unknown modId: {modId}");
-//     }
-
-//     private void EnforceReservedModConstraints()
-//     {
-//         var localMods = _mods[ModSource.Local].Mods;
-//         // Core must exist in Local
-//         if (!localMods.ContainsKey(CORE_MOD_ID))
-//             throw new InvalidOperationException($"[ModManager] Mod '{CORE_MOD_ID}' must exist in Local mods.");
-
-//         foreach (var modId in RESERVED_MOD_IDS)
-//         {
-//             // Reserved mod Id cannot be in any other source
-//             foreach (var (source, tuple) in _mods)
-//             {
-//                 if (source == ModSource.Local)
-//                     continue;
-
-//                 tuple.Mods.Remove(modId);
-//             }
-//         }
-//     }
-
-//     public List<Mod> GetAllModsSortedByDisplayName()
-//     {
-//         var result = new List<Mod>();
-
-//         var allMods = new List<Mod>();
-//         foreach (var tuple in _mods.Values)
-//             allMods.AddRange(tuple.Mods.Values);
-
-//         foreach (var modId in RESERVED_MOD_IDS)
-//         {
-//             var mod = allMods.Find(m => m.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase));
-//             if (mod != null)
-//             {
-//                 result.Add(mod);
-//                 allMods.Remove(mod);
-//             }
-//         }
-
-//         allMods.Sort((a, b) =>
-//         string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
-
-//         result.AddRange(allMods);
-//         return result;
-//     }
-
-//     public void PopulateFinalLoadableMods(List<Mod> mods)
-//     {
-//         var finalMods = new Dictionary<string, Mod>(StringComparer.OrdinalIgnoreCase);
-//         foreach (var mod in mods)
-//         {
-//             // Each time we encounter a ModId, overwrite previous entry
-//             finalMods[mod.ModId] = mod;
-//         }
-
-//         _finalModList.Clear();
-//         _finalModList.AddRange([.. finalMods.Values]);
-
-//         // Build the modId → folder path cache
-//         _finalModFolderPathCache.Clear();
-//         foreach (var mod in _finalModList)
-//         {
-//             _finalModFolderPathCache[mod.ModId] = Path.Combine(_mods[mod.Source].Path, mod.ModId);
-//         }
-//     }
-
-//     public bool TryGetMod(string modId, out Mod mod)
-//     {
-//         mod = null!;
-
-//         if (string.IsNullOrWhiteSpace(modId))
-//             return false;
-
-//         var found = _finalModList.Find(
-//             m => m.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase));
-
-//         if (found == null)
-//             return false;
-
-//         mod = found;
-//         return true;
-//     }
-
-//     #region FrameworkGameFlag.Debug
-
-//     public void ShowRuntimeHistory(string modId, string key)
-//     {
-//         if (!CheckAndWarnAboutFrameworkDebug()) return;
-
-//         if (!TryGetMod(modId, out var mod))
-//         {
-//             Console.WriteLine(
-//                 $"[ModManager] Cannot show runtime history for key '{key}'. " +
-//                 $"No mod found with id '{modId}'.");
-//             return;
-//         }
-
-//         var history = mod.GetRuntimeHistory(key);
-
-//         if (history.Count == 0)
-//         {
-//             // GetRuntimeHistory already logs reason
-//             return;
-//         }
-
-//         Console.WriteLine($"[ModManager] Runtime history for key '{key}' in mod '{modId}':");
-
-//         PrintRuntimeHistoryList(history);
-//     }
-
-//     public void ShowAllRuntimeHistories(string modId)
-//     {
-//         if (!CheckAndWarnAboutFrameworkDebug()) return;
-
-//         if (!TryGetMod(modId, out var mod))
-//         {
-//             Console.WriteLine(
-//                 $"[ModManager] Cannot show runtime histories. No mod found with id '{modId}'.");
-//             return;
-//         }
-
-//         var allKeys = mod.GetAllRuntimeHistoryKeys();
-
-//         if (allKeys.Count == 0)
-//         {
-//             Console.WriteLine($"[ModManager] No runtime keys exist for mod '{modId}'.");
-//             return;
-//         }
-
-//         Console.WriteLine($"[ModManager] Runtime histories for mod '{modId}':");
-
-//         foreach (var key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
-//         {
-//             Console.WriteLine($"- Key: {key}");
-
-//             var history = mod.GetRuntimeHistory(key);
-//             if (history.Count == 0)
-//             {
-//                 Console.WriteLine("  (no history available)");
-//                 continue;
-//             }
-
-//             PrintRuntimeHistoryList(history);
-//         }
-//     }
-
-//     public void ShowAllRuntimeHistoriesForAllMods()
-//     {
-//         if (!CheckAndWarnAboutFrameworkDebug()) return;
-
-//         if (FinalModList.Count == 0)
-//         {
-//             Console.WriteLine("[ModManager] No mods are loaded.");
-//             return;
-//         }
-
-//         Console.WriteLine("[ModManager] Showing all runtime histories for all mods:");
-
-//         foreach (var mod in FinalModList.OrderBy(m => m.ModId, StringComparer.OrdinalIgnoreCase))
-//         {
-//             Console.WriteLine($"\n=== Mod: {mod.ModId} ===");
-//             ShowAllRuntimeHistories(mod.ModId);
-//         }
-
-//         Console.WriteLine("\n[ModManager] End of all runtime histories.");
-//     }
-
-//     private static void PrintRuntimeHistoryList(
-//         IReadOnlyList<(string ModId, string Event, object? Value)> history)
-//     {
-//         if (!CheckAndWarnAboutFrameworkDebug()) return;
-
-//         for (int i = 0; i < history.Count; i++)
-//         {
-//             var (modId, evt, value) = history[i];
-
-//             string? valueInString = value != null ? value.ToString() : "<null>";
-//             Console.WriteLine($"  {i + 1}. {evt} by {modId} (value = {valueInString})");
-//         }
-//     }
-
-//     private static bool CheckAndWarnAboutFrameworkDebug()
-//     {
-//         if (GameFlagManager.IsSet(FrameworkGameFlag.Debug))
-//             return true;
-
-//         Console.WriteLine
-//         (
-//             "[ModManager] Framework debug mode is not enabled. " +
-//             "All runtime history debug functions are disabled. " +
-//             "Start the game with the '-debug' argument to enable runtime history tracking."
-//         );
-//         return false;
-//     }
-
-//     #endregion
-
-// }
+using AxiomPlayground.GameFlag;
+using AxiomPlayground.Modding.Discovery;
+using AxiomPlayground.Shared;
+
+namespace AxiomPlayground.Modding;
+
+public sealed class ModManager
+{
+    private static readonly ModManager _instance = new();
+    public static ModManager Instance => _instance;
+    private readonly List<Mod> _loadedMods = [];
+    public IReadOnlyList<Mod> LoadedMods => _loadedMods;
+    private readonly Dictionary<string, string> _resolvedModPaths = new(StringComparer.OrdinalIgnoreCase);
+
+    private ModManager() { }
+
+    private static List<ModSelectedState> LoadSelectedModList()
+    {
+        return [.. ModSelectedStore.Load(ModSystemPolicy.SelectedModFilePath).OrderBy(s => s.Order)];
+    }
+
+    public void LoadModsFromSelection()
+    {
+        var selectedStates = LoadSelectedModList();
+
+        _loadedMods.Clear();
+        _resolvedModPaths.Clear();
+
+        foreach (var selected in selectedStates)
+        {
+            var mod = ModDiscovery.LoadSelectedMod(selected);
+
+            _loadedMods.Add(mod);
+
+            _resolvedModPaths[mod.Info.Id] =
+                Path.Combine(
+                    ModSourcePathProvider.GetPath(mod.Source),
+                    mod.Info.Id);
+        }
+    }
+
+    /// <summary>
+    /// Compute the full folder path for a given mod.
+    /// </summary>
+    public string GetModFolderPath(Mod mod)
+    {
+        ArgumentNullException.ThrowIfNull(mod);
+
+        if (_resolvedModPaths.TryGetValue(mod.Info.Id, out var path))
+            return path;
+
+        throw new ArgumentException(
+            $"[ModManager] Mod '{mod.Info.Id}' is not loaded.");
+    }
+
+    public string GetModFolderPath(string modId)
+    {
+        if (_resolvedModPaths.TryGetValue(modId, out var path))
+            return path;
+
+        throw new ArgumentException($"[ModManager] Unknown modId: {modId}");
+    }
+
+    public bool TryGetMod(string modId, out Mod mod)
+    {
+        mod = null!;
+
+        if (string.IsNullOrWhiteSpace(modId))
+            return false;
+
+        var found = _loadedMods.Find(
+            m => m.Info.Id.Equals(modId, StringComparison.OrdinalIgnoreCase));
+
+        if (found == null)
+            return false;
+
+        mod = found;
+        return true;
+    }
+
+    #region FrameworkGameFlag.Debug
+
+    public void ShowRuntimeHistory(string modId, string key)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (!TryGetMod(modId, out var mod))
+        {
+            Console.WriteLine(
+                $"[ModManager] Cannot show runtime history for key '{key}'. " +
+                $"No mod found with id '{modId}'.");
+            return;
+        }
+
+        var history = mod.GetRuntimeHistory(key);
+
+        if (history.Count == 0)
+        {
+            // GetRuntimeHistory already logs reason
+            return;
+        }
+
+        Console.WriteLine($"[ModManager] Runtime history for key '{key}' in mod '{modId}':");
+
+        PrintRuntimeHistoryList(history);
+    }
+
+    public void ShowAllRuntimeHistories(string modId)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (!TryGetMod(modId, out var mod))
+        {
+            Console.WriteLine(
+                $"[ModManager] Cannot show runtime histories. No mod found with id '{modId}'.");
+            return;
+        }
+
+        var allKeys = mod.GetAllRuntimeHistoryKeys();
+
+        if (allKeys.Count == 0)
+        {
+            Console.WriteLine($"[ModManager] No runtime keys exist for mod '{modId}'.");
+            return;
+        }
+
+        Console.WriteLine($"[ModManager] Runtime histories for mod '{modId}':");
+
+        foreach (var key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"- Key: {key}");
+
+            var history = mod.GetRuntimeHistory(key);
+            if (history.Count == 0)
+            {
+                Console.WriteLine("  (no history available)");
+                continue;
+            }
+
+            PrintRuntimeHistoryList(history);
+        }
+    }
+
+    public void ShowAllRuntimeHistoriesForAllMods()
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        if (LoadedMods.Count == 0)
+        {
+            Console.WriteLine("[ModManager] No mods are loaded.");
+            return;
+        }
+
+        Console.WriteLine("[ModManager] Showing all runtime histories for all mods:");
+
+        foreach (var mod in LoadedMods.OrderBy(m => m.Info.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"\n=== Mod: {mod.Info.Id} ===");
+            ShowAllRuntimeHistories(mod.Info.Id);
+        }
+
+        Console.WriteLine("\n[ModManager] End of all runtime histories.");
+    }
+
+    private static void PrintRuntimeHistoryList(
+        IReadOnlyList<(string ModId, string Event, object? Value)> history)
+    {
+        if (!CheckAndWarnAboutFrameworkDebug()) return;
+
+        for (int i = 0; i < history.Count; i++)
+        {
+            var (modId, evt, value) = history[i];
+
+            string? valueInString = value != null ? value.ToString() : "<null>";
+            Console.WriteLine($"  {i + 1}. {evt} by {modId} (value = {valueInString})");
+        }
+    }
+
+    private static bool CheckAndWarnAboutFrameworkDebug()
+    {
+        if (GameFlagManager.IsSet(FrameworkGameFlag.Debug))
+            return true;
+
+        Console.WriteLine
+        (
+            "[ModManager] Framework debug mode is not enabled. " +
+            "All runtime history debug functions are disabled. " +
+            "Start the game with the '-debug' argument to enable runtime history tracking."
+        );
+        return false;
+    }
+
+    #endregion
+
+}

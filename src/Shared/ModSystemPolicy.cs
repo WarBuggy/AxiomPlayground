@@ -1,4 +1,4 @@
-namespace Launcher.ModManagement;
+namespace AxiomPlayground.Shared;
 
 public static class ModSystemPolicy
 {
@@ -20,4 +20,7 @@ public static class ModSystemPolicy
             "DLC2",
             "DLC3"
         };
+
+    public static readonly string SelectedModFilePath =
+        Path.Combine(AppContext.BaseDirectory, "launchModList.json");
 }

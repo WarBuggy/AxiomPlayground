@@ -1,4 +1,5 @@
 using AxiomPlayground.Modding;
+using AxiomPlayground.Shared;
 
 namespace Launcher.ModManagement;
 

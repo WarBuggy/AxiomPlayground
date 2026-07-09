@@ -1,4 +1,4 @@
-namespace AxiomPlayground.Modding;
+namespace AxiomPlayground.Shared;
 
 public enum ModSource
 {

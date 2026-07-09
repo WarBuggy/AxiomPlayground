@@ -6,18 +6,32 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
+      "Data/1.0.0": {
+        "dependencies": {
+          "GameFlag": "1.0.0",
+          "Modding": "1.0.0",
+          "Shared": "1.0.0",
+          "MoonSharp.Interpreter": "2.0.0.0"
+        },
+        "runtime": {
+          "Data.dll": {}
+        }
+      },
+      "GameFlag/1.0.0": {
+        "runtime": {
+          "GameFlag.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "Modding/1.0.0": {
         "dependencies": {
           "GameFlag": "1.0.0",
           "Shared": "1.0.0"
         },
         "runtime": {
-          "Modding.dll": {}
-        }
-      },
-      "GameFlag/1.0.0": {
-        "runtime": {
-          "GameFlag.dll": {
+          "Modding.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -30,11 +44,19 @@
             "fileVersion": "1.0.0.0"
           }
         }
+      },
+      "MoonSharp.Interpreter/2.0.0.0": {
+        "runtime": {
+          "MoonSharp.Interpreter.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0"
+          }
+        }
       }
     }
   },
   "libraries": {
-    "Modding/1.0.0": {
+    "Data/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -44,8 +66,18 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Modding/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Shared/1.0.0": {
       "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MoonSharp.Interpreter/2.0.0.0": {
+      "type": "reference",
       "serviceable": false,
       "sha512": ""
     }

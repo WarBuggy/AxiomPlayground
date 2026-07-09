@@ -14,9 +14,9 @@ namespace AxiomPlayground.Scripting.LuaBindings
             // Precompute the list of enabled mod IDs
             var modIds = new Table(luaScript);
             int index = 1;
-            foreach (var mod in ModManager.Instance.FinalModList)
+            foreach (var mod in ModManager.Instance.LoadedMods)
             {
-                modIds[index++] = mod.ModId;
+                modIds[index++] = mod.Info.Id;
             }
             modTable["Ids"] = (Func<Table>)(() => modIds);
 

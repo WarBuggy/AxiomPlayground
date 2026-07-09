@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
-using AxiomPlayground.Modding;
 
-namespace Launcher.ModManagement;
+namespace AxiomPlayground.Shared;
 
 public class ModSelectedState
 {

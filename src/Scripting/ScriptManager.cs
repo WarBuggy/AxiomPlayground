@@ -39,13 +39,13 @@ public sealed class ScriptManager
         ];
     }
 
-    public List<ScriptQueueItem> LoadAll(List<Mod> mods)
+    public List<ScriptQueueItem> LoadAll(IReadOnlyCollection<Mod> mods)
     {
         if (mods == null || mods.Count == 0)
             throw new InvalidOperationException("[ScriptManager] No mods provided.");
 
         List<ScriptQueueItem> queue = [];
-        var validModIds = mods.Select(m => m.ModId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validModIds = mods.Select(m => m.Info.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var mod in mods)
         {
@@ -68,7 +68,7 @@ public sealed class ScriptManager
                     catch { meta = null; }
                 }
 
-                var queueItem = CreateQueueItem(meta, mod.ModId, relativePath, luaFileFullPath);
+                var queueItem = CreateQueueItem(meta, mod.Info.Id, relativePath, luaFileFullPath);
                 InsertQueueItem(queueItem, queue);
             }
         }

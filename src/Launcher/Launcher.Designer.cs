@@ -1,8 +1,9 @@
-﻿namespace Launcher;
-
-using global::Launcher.Config;
+﻿using global::Launcher.Config;
 using global::Launcher.Controls;
 using global::Launcher.Properties;
+using AxiomPlayground.Shared;
+
+namespace Launcher;
 
 partial class Launcher
 {
@@ -16,6 +17,7 @@ partial class Launcher
     // Working area
     private TableLayoutPanel panelControlButtons;
     private FlowLayoutPanel pnlButtonStack;
+    private Button btnPlay;
     private Button btnSelect;
     private ModSelectedListControl _selectedListControl = null!;
     private ModAvailableListControl _availableListControl = null!;
@@ -96,8 +98,13 @@ partial class Launcher
         pnlButtonStack.Controls.Add(btnSelect);
 
         //
-        // panelSelectionButtons
+        // btnPlay
         //
+        btnPlay = new Button();
+        btnPlay.Text = "Play";
+        btnPlay.Dock = DockStyle.Fill;
+        btnPlay.Margin = new Padding(5);
+
         panelControlButtons.Dock = DockStyle.Left;
         panelControlButtons.Width = 80;
         panelControlButtons.ColumnCount = 1;
@@ -108,6 +115,7 @@ partial class Launcher
         panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
 
         panelControlButtons.Controls.Add(pnlButtonStack, 0, 1);
+        panelControlButtons.Controls.Add(btnPlay, 0, 2);
 
         _selectedListControl = new ModSelectedListControl();
         _selectedListControl.Dock = DockStyle.Fill;

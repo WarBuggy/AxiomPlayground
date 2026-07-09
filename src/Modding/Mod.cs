@@ -1,4 +1,5 @@
 using AxiomPlayground.Modding.Metadata.Model;
+using AxiomPlayground.Shared;
 
 namespace AxiomPlayground.Modding;
 

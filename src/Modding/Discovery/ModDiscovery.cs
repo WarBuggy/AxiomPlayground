@@ -1,21 +1,20 @@
+using BootstrapLocalization = AxiomPlayground.Shared.Shared;
+using AxiomPlayground.Shared;
 using AxiomPlayground.Modding.Metadata;
+
 
 namespace AxiomPlayground.Modding.Discovery;
 
 public sealed class ModDiscovery
 {
-    private readonly Dictionary<ModSource, string> _sourcePaths = new()
-    {
-        { ModSource.Steam, "Steam/workshop/content/gameId/" },
-        { ModSource.Local, "Mods/" }
-    };
-
-    public List<Mod> Discover()
+    public static List<Mod> Discover()
     {
         var result = new List<Mod>();
 
-        foreach (var (source, rootPath) in _sourcePaths)
+        foreach (ModSource source in Enum.GetValues<ModSource>())
         {
+            string rootPath = ModSourcePathProvider.GetPath(source);
+
             var modsFromSource = ScanSource(source, rootPath);
             result.AddRange(modsFromSource);
         }
@@ -29,7 +28,8 @@ public sealed class ModDiscovery
 
         if (!Directory.Exists(rootPath))
         {
-            Console.WriteLine($"[ModDiscovery] Folder not found: {rootPath}");
+            Console.WriteLine(
+                BootstrapLocalization.T("errorModDiscoverFolderNotFound", rootPath));
             return mods;
         }
 
@@ -44,7 +44,7 @@ public sealed class ModDiscovery
             catch (Exception ex)
             {
                 Console.WriteLine(
-                    $"[ModDiscovery] Skipping '{modFolder}': {ex.Message}");
+                    BootstrapLocalization.T("errorModDiscoverSkippingFolder", modFolder, ex.Message));
             }
         }
 
@@ -60,6 +60,25 @@ public sealed class ModDiscovery
         // (we do not validate files here anymore)
 
         var mod = new Mod(info, source);
+
+        return mod;
+    }
+
+    public static Mod LoadSelectedMod(ModSelectedState selected)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+
+        string rootPath = ModSourcePathProvider.GetPath(selected.Source);
+
+        string modFolder = Path.Combine(rootPath, selected.ModId);
+
+        Mod? mod = LoadModFromFolder(modFolder, selected.Source) ??
+            throw new DirectoryNotFoundException(BootstrapLocalization.T(
+                "errorModDiscoverSelectedModNotFound", selected.ModId, selected.Source));
+
+        if (!mod.Info.Id.Equals(selected.ModId, StringComparison.OrdinalIgnoreCase))
+            throw new Exception(BootstrapLocalization.T(
+                "errorModDiscoverSelectedModIdMismatch", selected.ModId, mod.Info.Id));
 
         return mod;
     }

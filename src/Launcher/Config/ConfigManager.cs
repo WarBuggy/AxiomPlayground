@@ -1,8 +1,10 @@
-namespace Launcher.Config;
 
+using AxiomPlayground.Shared;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+
+namespace Launcher.Config;
 
 public static class ConfigManager
 {

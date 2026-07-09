@@ -24,7 +24,7 @@ public sealed class LocalizationManager : BaseManager
             // We don't need to prepopulate cultures anymore; just check for presence in DataManager
             bool cultureExists = false;
 
-            foreach (var modId in ModManager.Instance.FinalModList.Select(m => m.ModId))
+            foreach (var modId in ModManager.Instance.LoadedMods.Select(m => m.Info.Id))
             {
                 string path = $"{value}.";
                 if (DataManager.Instance.TryGetData(modId, path, out _))

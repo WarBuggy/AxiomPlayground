@@ -1,5 +1,8 @@
 using AxiomPlayground.Modding.Discovery;
+using AxiomPlayground.Modding;
+using AxiomPlayground.Shared;
 using Launcher.ModManagement;
+using System.Diagnostics;
 
 namespace Launcher;
 
@@ -17,13 +20,13 @@ public partial class Launcher : Form
 
         _selectedListControl.EntryRemoveRequest += ModRemoveRequested;
         _availableListControl.OnModSelectionChanged += AvailableModSelectionChanged;
+
+        btnPlay.Click += BtnPlay_Click;
     }
 
     private void Launcher_Shown(object? sender, EventArgs e)
     {
-        var discovery = new ModDiscovery();
-
-        var mods = discovery.Discover();
+        var mods = ModDiscovery.Discover();
 
         _groups = ModGroupBuilder.Build(mods);
         ValidateCoreExists(_groups);
@@ -196,5 +199,30 @@ public partial class Launcher : Form
 
         // rebuild selected panel.
         LoadSelectedModList(selectedStates);
+    }
+
+    private void BtnPlay_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            string gamePath = Path.Combine(
+                AppContext.BaseDirectory,
+                "in254.exe");
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = gamePath,
+                Arguments = "--waitForDebugger",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "Failed to launch game",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using AxiomPlayground.GameFlag;
+using AxiomPlayground.Shared;
 using AxiomPlayground.Modding;
 
 namespace AxiomPlayground.Data;
@@ -15,7 +16,7 @@ public sealed class DataManager
     private readonly HashSet<string> _systemCategories = [];
     private DataManager() { }
 
-    public void LoadAll(List<Mod> mods, IReadOnlyList<BaseManager> managers)
+    public void LoadAll(IReadOnlyCollection<Mod> mods, IReadOnlyList<BaseManager> managers)
     {
         foreach (var manager in managers)
         {
@@ -26,7 +27,7 @@ public sealed class DataManager
         if (mods == null || mods.Count == 0)
             throw new InvalidOperationException("[DataManager] No mods provided.");
 
-        var validModIds = mods.Select(m => m.ModId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validModIds = mods.Select(m => m.Info.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var frameworkDebugEnabled = GameFlagManager.IsSet(FrameworkGameFlag.Debug);
 
         // prepare data container for Core mod
@@ -35,8 +36,8 @@ public sealed class DataManager
         foreach (var mod in mods)
         {
             // Give every mod a data container
-            if (mod.ModId != ModManager.CORE_MOD_ID) // skip Core because already exists
-                _dataContainers[mod.ModId] = new DataContainer(frameworkDebugEnabled);
+            if (mod.Info.Id != ModSystemPolicy.CORE_MOD_ID) // skip Core because already exists
+                _dataContainers[mod.Info.Id] = new DataContainer(frameworkDebugEnabled);
 
             string dataRoot = Path.Combine(ModManager.Instance.GetModFolderPath(mod), DATA_FOLDER);
 
@@ -53,19 +54,19 @@ public sealed class DataManager
                 }
                 catch
                 {
-                    Console.WriteLine($"[DataManager] Failed to parse '{jsonFile}' in mod '{mod.ModId}'.");
+                    Console.WriteLine($"[DataManager] Failed to parse '{jsonFile}' in mod '{mod.Info.Id}'.");
                     continue;
                 }
 
                 if (file?.Data == null)
                 {
-                    Console.WriteLine($"[DataManager] Missing 'data' in '{jsonFile}' (mod '{mod.ModId}').");
+                    Console.WriteLine($"[DataManager] Missing 'data' in '{jsonFile}' (mod '{mod.Info.Id}').");
                     continue;
                 }
 
                 string targetModId =
                     string.IsNullOrWhiteSpace(file.TargetMod)
-                        ? mod.ModId
+                        ? mod.Info.Id
                         : file.TargetMod;
 
                 if (!validModIds.Contains(targetModId))
@@ -76,7 +77,7 @@ public sealed class DataManager
 
                 if (!_dataContainers.TryGetValue(targetModId, out var container))
                 {
-                    Console.WriteLine($"[DataManager] Target mod '{targetModId}' must be loaded before being used by mod '{mod.ModId}'. Please check the mod load order!");
+                    Console.WriteLine($"[DataManager] Target mod '{targetModId}' must be loaded before being used by mod '{mod.Info.Id}'. Please check the mod load order!");
                     continue;
                 }
 
@@ -93,8 +94,8 @@ public sealed class DataManager
                         category = keyFirstPart;
                     }
                     var flattenedData = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                    FlattenValue(kv.Value, kv.Key, flattenedData, mod.ModId, jsonFile);
-                    container.HandleFlatData(mod.ModId, flattenedData, isOverwrite, category);
+                    FlattenValue(kv.Value, kv.Key, flattenedData, mod.Info.Id, jsonFile);
+                    container.HandleFlatData(mod.Info.Id, flattenedData, isOverwrite, category);
                 }
             }
         }
@@ -300,17 +301,17 @@ public sealed class DataManager
         public Dictionary<string, object>? Data { get; set; }
     }
 
-    private void PrepareCoreDataContainer(List<Mod> mods, bool frameworkDebugEnabled)
+    private void PrepareCoreDataContainer(IReadOnlyCollection<Mod> mods, bool frameworkDebugEnabled)
     {
         var coreDataContainer = new DataContainer(frameworkDebugEnabled);
         var modLedger = new LedgerArray();
         foreach (var mod in mods)
         {
-            modLedger.InsertLast(mod.ModId, ModManager.CORE_MOD_ID);
+            modLedger.InsertLast(mod.Info.Id, ModSystemPolicy.CORE_MOD_ID);
         }
-        if (coreDataContainer.TryCreateFlatData(ModManager.CORE_MOD_ID, "mods.list", ModManager.CORE_MOD_ID, modLedger, out var error))
+        if (coreDataContainer.TryCreateFlatData(ModSystemPolicy.CORE_MOD_ID, "mods.list", ModSystemPolicy.CORE_MOD_ID, modLedger, out var error))
         {
-            _dataContainers[ModManager.CORE_MOD_ID] = coreDataContainer;
+            _dataContainers[ModSystemPolicy.CORE_MOD_ID] = coreDataContainer;
             return;
         }
         throw new Exception($"[DataManager] Failed to create path data of all mod list. Error: {error}");

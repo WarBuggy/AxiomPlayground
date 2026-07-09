@@ -1,12 +1,9 @@
 using System.Text.Json;
 
-namespace Launcher.ModManagement;
+namespace AxiomPlayground.Shared;
 
 public static class ModSelectedStore
 {
-    private static readonly string FilePath =
-       Path.Combine(AppContext.BaseDirectory, "launchModList.json");
-
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true
@@ -20,12 +17,12 @@ public static class ModSelectedStore
                 selectedMods,
                 _jsonOptions);
 
-            File.WriteAllText(FilePath, json);
+            File.WriteAllText(ModSystemPolicy.SelectedModFilePath, json);
         }
         catch (Exception ex)
         {
             Console.WriteLine(
-                Shared.T("errorModSelectedStoreFailToSave", FilePath, ex.Message));
+                Shared.T("errorModSelectedStoreFailToSave", ModSystemPolicy.SelectedModFilePath, ex.Message));
         }
     }
 
@@ -59,6 +56,6 @@ public static class ModSelectedStore
 
     public static List<ModSelectedState> Load()
     {
-        return Load(FilePath);
+        return Load(ModSystemPolicy.SelectedModFilePath);
     }
 }

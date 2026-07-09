@@ -5,7 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Modding\Modding.csproj" />
+    <ProjectReference Include="../Shared/Shared.csproj" />
+    <ProjectReference Include="../Modding/Modding.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -40,9 +41,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Localization\Localization.resx">
-      <LogicalName>Launcher.Localization.resources</LogicalName>
-    </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

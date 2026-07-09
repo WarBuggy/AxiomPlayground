@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AxiomPlayground.Shared;
 
 namespace Launcher.ModManagement;
 

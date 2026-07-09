@@ -1,3 +1,5 @@
+using AxiomPlayground.Shared;
+
 namespace Launcher.ModManagement;
 
 public static class ModGroupOrdering

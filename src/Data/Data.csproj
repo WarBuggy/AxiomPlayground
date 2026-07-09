@@ -20,6 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Shared/Shared.csproj" />
     <ProjectReference Include="../GameFlag/GameFlag.csproj" />
     <ProjectReference Include="../Modding/Modding.csproj" />
   </ItemGroup>
