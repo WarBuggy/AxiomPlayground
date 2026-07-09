@@ -212,7 +212,6 @@ public partial class Launcher : Form
             Process.Start(new ProcessStartInfo
             {
                 FileName = gamePath,
-                Arguments = "--waitForDebugger",
                 UseShellExecute = true
             });
         }
