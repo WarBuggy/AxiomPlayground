@@ -102,7 +102,8 @@ partial class Launcher
         //
         btnPlay = new Button();
         btnPlay.Text = "Play";
-        btnPlay.Dock = DockStyle.Fill;
+        btnPlay.Height = 30;
+        btnPlay.Anchor = AnchorStyles.None;
         btnPlay.Margin = new Padding(5);
 
         panelControlButtons.Dock = DockStyle.Left;
@@ -110,9 +111,9 @@ partial class Launcher
         panelControlButtons.ColumnCount = 1;
         panelControlButtons.RowCount = 3;
         panelControlButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        panelControlButtons.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
 
         panelControlButtons.Controls.Add(pnlButtonStack, 0, 1);
         panelControlButtons.Controls.Add(btnPlay, 0, 2);
