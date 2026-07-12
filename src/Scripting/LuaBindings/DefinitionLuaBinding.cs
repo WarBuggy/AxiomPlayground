@@ -11,7 +11,8 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
 
         var definitionTable = new Table(luaScript);
 
-        definitionTable["TryGetPayload"] = (Func<string, string, DynValue, DynValue, DynValue>)((typeName, defName, pathTable, modIdDyn) =>
+        definitionTable["TryGetPayload"] = (Func<string, string, DynValue, DynValue, DynValue>)(
+            (typeName, defName, pathTable, modIdDyn) =>
         {
             if (!ResolveModId(modIdDyn, out var modId))
                 return DynValue.NewTuple(DynValue.Nil, DynValue.False);
@@ -35,7 +36,8 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
             );
         });
 
-        definitionTable["SetPayload"] = (Action<string, string, DynValue, object?, DynValue>)((typeName, defName, pathTable, value, modIdDyn) =>
+        definitionTable["SetPayload"] = (Action<string, string, DynValue, object?, DynValue>)(
+            (typeName, defName, pathTable, value, modIdDyn) =>
         {
             if (!TryGetExecutingMod(out string actingModId))
                 return;
@@ -59,6 +61,35 @@ public sealed class DefinitionLuaBinding : LuaBindingBase
                 actingModId,
                 value
             );
+        });
+
+        definitionTable["TryCreatePayload"] = (Func<string, string, DynValue, object?, DynValue, DynValue>)(
+            (typeName, defName, pathTable, value, modIdDyn) =>
+        {
+            if (!TryGetExecutingMod(out string actingModId))
+                return DynValue.False;
+
+            string owningModId;
+            if (modIdDyn.Type == DataType.String && !string.IsNullOrEmpty(modIdDyn.String))
+                owningModId = modIdDyn.String;
+            else
+                owningModId = actingModId;
+
+            if (pathTable.Type != DataType.Table)
+                return DynValue.False;
+
+            var pathParts = ConvertLuaTableToStringList(pathTable);
+
+            bool success = DefinitionManager.Instance.TryCreatePayload(
+                owningModId,
+                typeName,
+                defName,
+                pathParts,
+                actingModId,
+                value
+            );
+
+            return DynValue.NewBoolean(success);
         });
 
         luaScript.Globals["Definition"] = definitionTable;

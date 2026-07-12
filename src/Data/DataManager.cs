@@ -14,6 +14,7 @@ public sealed class DataManager
     private readonly Dictionary<string, DataContainer> _dataContainers = new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly HashSet<string> _systemCategories = [];
+    private bool _pathCreationPhase = true;
     private DataManager() { }
 
     public void LoadAll(IReadOnlyCollection<Mod> mods, IReadOnlyList<BaseManager> managers)
@@ -288,6 +289,51 @@ public sealed class DataManager
     {
         foreach (var (_, container) in _dataContainers)
             container.ClearCategoryIndex(category);
+    }
+
+    public bool TryCreateData(string owningModId, string path,
+        string actingModId, object? value)
+    {
+        if (!_pathCreationPhase)
+        {
+            Console.WriteLine("[DataManager] Creating new data paths is no longer allowed after initialization.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(owningModId))
+        {
+            Console.WriteLine("[DataManager] owningModId cannot be null or empty.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("[DataManager] path cannot be null or empty.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(actingModId))
+        {
+            Console.WriteLine("[DataManager] actingModId cannot be null or empty.");
+            return false;
+        }
+
+        if (!_dataContainers.TryGetValue(owningModId, out var container))
+        {
+            Console.WriteLine($"[DataManager] No data container found for mod '{owningModId}'.");
+            return false;
+        }
+
+        bool success = container.TryCreateFlatData(owningModId, path, actingModId, value, out string? error);
+        if (!success)
+            Console.WriteLine(error);
+
+        return success;
+    }
+
+    public void EndPathCreationPhase()
+    {
+        _pathCreationPhase = false;
     }
 
     private sealed class JsonDataFile

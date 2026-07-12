@@ -107,6 +107,38 @@ public class DefinitionManager : BaseManager
         DataManager.Instance.SetData(modId, fullPath, actingModId, value);
     }
 
+    public bool TryCreatePayload(string modId, string typeName, string defName,
+        IEnumerable<string> pathParts, string actingModId, object? value)
+    {
+        if (pathParts == null)
+        {
+            Console.WriteLine("[DefinitionManager] pathParts cannot be null.");
+            return false;
+        }
+
+        if (!_definitions.TryGetValue(modId, out var typeMap) ||
+            !typeMap.TryGetValue(typeName, out var defMap) ||
+            !defMap.Contains(defName))
+        {
+            Console.WriteLine(
+                $"[DefinitionManager] Definition '{defName}' of type '{typeName}' does not exist for mod '{modId}'.");
+            return false;
+        }
+
+        var fullPathParts = new List<string>
+        {
+            typeName,
+            defName,
+            "payload"
+        };
+
+        fullPathParts.AddRange(pathParts);
+
+        string fullPath = CreateFullPath([.. fullPathParts]);
+
+        return DataManager.Instance.TryCreateData(modId, fullPath, actingModId, value);
+    }
+
     public override void CleanupAfterLoadEvents()
     {
         foreach (var paths in _definitionPaths.Values)
