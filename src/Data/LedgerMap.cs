@@ -104,6 +104,11 @@ public class LedgerMap
         return null;
     }
 
+    public void ClearWithoutTracking()
+    {
+        _values.Clear();
+    }
+
     private void Append(MapEvent evt)
     {
         if (_trackingEnabled)

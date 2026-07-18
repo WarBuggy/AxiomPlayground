@@ -1,3 +1,6 @@
+## Ignore file storing git diff --cached 
+git_diff.txt
+
 # Local game build configuration
 Directory.Build.props
 
