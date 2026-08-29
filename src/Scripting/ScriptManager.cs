@@ -281,6 +281,41 @@ public sealed class ScriptManager
         }
     }
 
+    public void FireLuaEventList(
+        string tableName,
+        string listName,
+        params DynValue[] args)
+    {
+        var table = _luaScript.Globals.Get(tableName);
+
+        if (table.Type != DataType.Table)
+            throw new InvalidOperationException(
+                $"[ScriptManager] Lua table '{tableName}' was not found.");
+
+        var eventList = table.Table.Get(listName);
+
+        if (eventList.Type != DataType.Table)
+            throw new InvalidOperationException(
+                $"[ScriptManager] Lua event list '{tableName}.{listName}' was not found.");
+
+        for (int i = 1; i <= eventList.Table.Length; i++)
+        {
+            var luaEvent = eventList.Table.Get(i);
+
+            if (luaEvent.Type != DataType.Table)
+                throw new InvalidOperationException(
+                    $"[ScriptManager] Lua event list '{tableName}.{listName}' contains an invalid event at index {i}.");
+
+            var fireFunction = luaEvent.Table.Get("Fire");
+
+            if (fireFunction.Type != DataType.Function)
+                throw new InvalidOperationException(
+                    $"[ScriptManager] Lua event at '{tableName}.{listName}[{i}]' does not contain a Fire function.");
+
+            fireFunction.Function.Call(args);
+        }
+    }
+
     public DynValue[] BuildEventArgs(IEnumerable<object?> args)
     {
         return [.. args
