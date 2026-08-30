@@ -312,7 +312,16 @@ public sealed class ScriptManager
                 throw new InvalidOperationException(
                     $"[ScriptManager] Lua event at '{tableName}.{listName}[{i}]' does not contain a Fire function.");
 
-            fireFunction.Function.Call(args);
+            try
+            {
+                fireFunction.Function.Call(args);
+            }
+            catch (ScriptRuntimeException ex)
+            {
+                throw new InvalidOperationException(
+                    $"[ScriptManager] Lua runtime error: {ex.DecoratedMessage}",
+                    ex);
+            }
         }
     }
 
